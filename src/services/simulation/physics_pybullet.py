@@ -14,7 +14,7 @@ import math
 import pybullet as p
 from PyQt6.QtCore import pyqtSignal, QDir
 from PyQt6.QtWidgets import QWidget
-from src.services.data.signals import ConfigSignalManager
+from src.services.data.signals import bus
 
 
 class RobotArmPhysics(QWidget):
@@ -213,7 +213,7 @@ class RobotArmPhysics(QWidget):
         pos = [y * 0.001, x * 0.001, z * 0.001]
 
         # Calcular masa proporcional al volumen (base 20mm -> 0.05kg)
-        radius = ConfigSignalManager.get_instance().get_param(
+        radius = bus.cfg_get_param(
             "camera.json", "sphere_radius", default=20.0)
         mass = 0.05 * (radius / 20.0)**3
 

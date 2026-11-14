@@ -11,7 +11,7 @@ import subprocess
 import sys
 import cv2
 from cv2_enumerate_cameras import enumerate_cameras
-from src.services.data.signals import CameraSignalManager
+from src.services.data.signals import bus
 
 
 class CameraDevices:
@@ -24,7 +24,7 @@ class CameraDevices:
 
     def get_cameras(self):
         """
-        Escanea las cámaras disponibles y emite la lista vía CameraSignalManager.
+        Escanea las cámaras disponibles y emite la lista vía bus.cam_available_cameras.
 
         Filtra cámaras duplicadas y genera nombres únicos para cada
         dispositivo detectado.
@@ -56,7 +56,7 @@ class CameraDevices:
             (cam.index, display_name)
             for cam, display_name in zip(unique_cameras, camera_names)
         ]
-        CameraSignalManager.get_instance().available_cameras.emit(results)
+        bus.cam_available_cameras.emit(results)
 
     def _get_camera_sysfs_device(self, cam):
         """

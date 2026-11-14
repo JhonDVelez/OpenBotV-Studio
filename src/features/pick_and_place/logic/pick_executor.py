@@ -4,7 +4,7 @@ Módulo que implementa la lógica de la secuencia de captura (Pick).
 
 import math
 from src.features.pick_and_place.logic.base_executor import BaseExecutor
-from src.services.data.signals import ConfigSignalManager
+from src.services.data.signals import bus
 
 class PickExecutor(BaseExecutor):
     """Ejecutor especializado en la fase de Pick."""
@@ -28,7 +28,7 @@ class PickExecutor(BaseExecutor):
             return
 
         x, y, z = sphere_pose['position']
-        radius = ConfigSignalManager.get_instance().get_param(
+        radius = bus.cfg_get_param(
             "camera.json", "sphere_radius", default=20.0)
         r = radius + 3.0
         angle = math.atan(x/(y+100))
@@ -82,7 +82,7 @@ class PickExecutor(BaseExecutor):
             return
 
         x, y, z = sphere_pose['position']
-        radius = ConfigSignalManager.get_instance().get_param(
+        radius = bus.cfg_get_param(
             "camera.json", "sphere_radius", default=20.0)
         r = radius + 3.0
         angle = math.atan(x/(y+100))

@@ -9,18 +9,17 @@ la arquitectura de controladores y servicios de la aplicación.
 import os
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout
 from PyQt6.QtCore import QCoreApplication, Qt
-from PyQt6.QtGui import QIcon
 from qframelesswindow import FramelessMainWindow
-from src.main_window.mixins import MainTitleBarMixin
 from src.services.styling import ThemeManager
-from src.services.data.signals import ThemeSignalManager
-from src.features.color.mixins import ColorMenuMixin
+from src.services.data.signals import bus
+from src.services.ui import window_chrome
+from src.main_window.title_bar import AppTitleBar
 from src.features.color.color_controller import ColorController
 from src.services.devices import CameraDevices
 from src.services.devices.device_monitor import get_device_monitor
 
 
-class ColorWindow(FramelessMainWindow, ColorMenuMixin):
+class ColorWindow(FramelessMainWindow):
     """
     Ventana para la calibración de colores HSV.
 
@@ -36,9 +35,7 @@ class ColorWindow(FramelessMainWindow, ColorMenuMixin):
         self.setWindowTitle("Calibración De Colores")
 
         # 1. Managers y Atributos de estilo
-        self._theme_signal_manager = ThemeSignalManager.get_instance()
-        self.sun_icon = QIcon(os.path.join("icons:sun.png"))
-        self.moon_icon = QIcon(os.path.join("icons:moon.png"))
+        self._theme_signal_manager = bus
 
         # 2. Configuracion de la UI Base
         self.__setup_base_ui()
@@ -61,9 +58,10 @@ class ColorWindow(FramelessMainWindow, ColorMenuMixin):
         self._root_layout.setSpacing(0)
 
         # Menus y Barra de Titulo personalizada
-        self.create_calibration_menu()
-        self.create_status_bar()
-        self.title_bar = MainTitleBarMixin(self, "Calibración De Colores")
+        self.menu_bar = window_chrome.build_menu_bar(self)
+        window_chrome.build_theme_action(self)
+        window_chrome.build_status_bar(self)
+        self.title_bar = AppTitleBar(self, "Calibración De Colores")
         self.setTitleBar(self.title_bar)
         self._root_layout.addWidget(self.title_bar)
 
@@ -104,7 +102,7 @@ class ColorWindow(FramelessMainWindow, ColorMenuMixin):
         if hasattr(self, 'theme_action'):
             self.theme_action.triggered.connect(
                 self.theme_manager.toggle_theme_event)
-        self._theme_signal_manager.theme_changed.connect(
+        bus.theme_changed.connect(
             self._on_theme_changed)
 
     def _on_theme_changed(self, is_dark: bool):

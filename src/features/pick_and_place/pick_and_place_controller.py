@@ -14,11 +14,7 @@ Conexiones:
 from PyQt6.QtCore import QObject, pyqtSlot, QEvent, QTimer, QThread
 from src.services.data.utils import robotang_angulos
 import numpy as np
-from src.services.data.signals import (
-    PickPlaceSignalManager, SimulationSignalManager,
-    PhysicalSignalManager, CameraSignalManager,
-    SearchSignalManager
-)
+from src.services.data.signals import bus
 from src.features.pick_and_place.pick_and_place_widget import PickAndPlaceWidget
 from src.features.pick_and_place.pick_and_place_worker import PickAndPlaceWorker
 from src.services.data.enums import Modes
@@ -41,8 +37,8 @@ class PickAndPlaceController(QObject):
     def __init__(self, camera_widget=None):
         """Inicializa el controlador, worker y overlay."""
         super().__init__()
-        self.signal_manager = PickPlaceSignalManager.get_instance()
-        self.sim_signals = SimulationSignalManager.get_instance()
+        self.signal_manager = bus
+        self.sim_signals = bus
         self.kinematics_controller = None
         self.camera_widget = camera_widget
         self._filter_installed = False
@@ -63,9 +59,9 @@ class PickAndPlaceController(QObject):
     def _create_worker(self):
         if hasattr(self, 'worker') and self.worker:
             try:
-                self.signal_manager.poses_from_camera.disconnect(self.worker.on_poses_from_camera)
-                self.signal_manager.target_reached.disconnect(self.worker.on_target_reached)
-                self.signal_manager.inverse_kinematics_ready.disconnect(self.worker.on_ik_ready)
+                bus.pp_poses_from_camera.disconnect(self.worker.on_poses_from_camera)
+                bus.pp_target_reached.disconnect(self.worker.on_target_reached)
+                bus.pp_inverse_kinematics_ready.disconnect(self.worker.on_ik_ready)
                 self.worker.action_request.disconnect(self._route_action)
                 self.worker.sequence_completed.disconnect(self._on_sequence_completed)
                 self.worker.sequence_failed.disconnect(self._on_sequence_failed)
@@ -79,11 +75,11 @@ class PickAndPlaceController(QObject):
 
         self.worker = PickAndPlaceWorker(kinematics_controller=self.kinematics_controller)
         
-        self.signal_manager.poses_from_camera.connect(
+        bus.pp_poses_from_camera.connect(
             self.worker.on_poses_from_camera)
-        self.signal_manager.target_reached.connect(
+        bus.pp_target_reached.connect(
             self.worker.on_target_reached)
-        self.signal_manager.inverse_kinematics_ready.connect(
+        bus.pp_inverse_kinematics_ready.connect(
             self.worker.on_ik_ready)
 
         self.worker.action_request.connect(self._route_action)
@@ -107,20 +103,20 @@ class PickAndPlaceController(QObject):
 
     def _setup_connections(self):
         """        Configura conexiones entre señales globales, worker y overlay."""
-        self.signal_manager.state_changed.connect(self._on_state_changed)
-        self.signal_manager.spheres_detected_2d.connect(
+        bus.pp_state_changed.connect(self._on_state_changed)
+        bus.pp_spheres_detected_2d.connect(
             self._on_spheres_detected_2d)
 
         # Conectar resultados de charuco para modo Place
-        CameraSignalManager.get_instance().charuco_done.connect(self._on_charuco_done)
+        bus.cam_charuco_done.connect(self._on_charuco_done)
 
         self.overlay.sphere_selected.connect(self._request_pick)
         self.overlay.place_requested.connect(self._request_place)
         self.overlay.reset_requested.connect(self.restart_sequence)
 
-        sim_signals = SimulationSignalManager.get_instance()
-        phys_signals = PhysicalSignalManager.get_instance()
-        # sim_signals.sensor_position_signal.connect(
+        sim_signals = bus
+        phys_signals = bus
+        # bus.sim_sensor_position_signal.connect(
         #     self.worker.on_simulation_feedback_update)
 
     def set_camera_widget(self, camera_widget):
@@ -153,7 +149,7 @@ class PickAndPlaceController(QObject):
 
             self.overlay.resize(camera_widget.size())
             self._sync_overlay_stack()
-            if self.signal_manager.get_state():
+            if bus.pp_get_state():
                 self._install_filter()
 
     @pyqtSlot(bool)
@@ -254,8 +250,8 @@ class PickAndPlaceController(QObject):
     @pyqtSlot(bool, bool)
     def _on_vision_search_request(self, charuco, circle):
         """Activa o desactiva la búsqueda visual según el estado del worker."""
-        SearchSignalManager.get_instance().set_charuco(charuco)
-        SearchSignalManager.get_instance().set_circle(circle)
+        bus.search_set_charuco(charuco)
+        bus.search_set_circle(circle)
 
     @pyqtSlot(int, object)
     def _on_charuco_done(self, frame_id, data):
@@ -275,7 +271,7 @@ class PickAndPlaceController(QObject):
 
                 # Congelar detección de ChArUco una vez obtenida la pose en modo place
                 if self.overlay._mode == 'place' and self.worker and self.worker.current_state_value == 'waiting_for_input':
-                    SearchSignalManager.get_instance().set_charuco(False)
+                    bus.search_set_charuco(False)
 
     @pyqtSlot(str)
     def _request_pick(self, color):
@@ -285,13 +281,13 @@ class PickAndPlaceController(QObject):
             color (str): Color de la esfera seleccionada por el usuario.
         """
         self._current_color = color
-        self.signal_manager.sphere_selected.emit(color)
-        self.signal_manager.change_mode_signal.emit(Modes.PICK_PLACE)
-        self.signal_manager.release_sphere_request.emit(color)
-        self.signal_manager.set_pick_place_running(True)
+        bus.pp_sphere_selected.emit(color)
+        bus.pp_change_mode_signal.emit(Modes.PICK_PLACE)
+        bus.pp_release_sphere_request.emit(color)
+        bus.pp_set_running(True)
         # Desactivar búsqueda de esferas durante el movimiento para evitar ruido.
-        # Ruteado por el DataController hacia SearchSignalManager.
-        self.signal_manager.search_circle_request.emit(False)
+        # Ruteado por el DataController hacia el bus (search_charuco/circle_changed).
+        bus.pp_search_circle_request.emit(False)
         self.worker.pick(color)
 
     @pyqtSlot(dict)
@@ -301,11 +297,11 @@ class PickAndPlaceController(QObject):
         Args:
             coords (dict): Coordenadas {x, y, z} seleccionadas en el tablero.
         """
-        self.signal_manager.place_requested.emit(coords)
-        self.signal_manager.set_pick_place_running(True)
+        bus.pp_place_requested.emit(coords)
+        bus.pp_set_running(True)
         # Desactivar búsqueda de esferas durante el movimiento.
-        # Ruteado por el DataController hacia SearchSignalManager.
-        self.signal_manager.search_circle_request.emit(False)
+        # Ruteado por el DataController hacia el bus (search_charuco/circle_changed).
+        bus.pp_search_circle_request.emit(False)
         self.worker.place(coords)
 
     @pyqtSlot(dict)
@@ -318,15 +314,15 @@ class PickAndPlaceController(QObject):
         """
         action_type = action.get('type')
         if action_type == 'move':
-            self.sim_signals.update_target_signal.emit(action['target'])
+            bus.sim_update_target_signal.emit(action['target'])
         elif action_type == 'compute_ik':
-            self.signal_manager.inverse_kinematics_requested.emit(action)
+            bus.pp_inverse_kinematics_requested.emit(action)
 
     @pyqtSlot()
     def _on_sequence_completed(self):
         """Maneja la finalización exitosa de la secuencia."""
         # Primero desactivamos el flag de ejecucion para permitir actualizaciones de posicion
-        self.signal_manager.set_pick_place_running(False)
+        bus.pp_set_running(False)
 
         # Si terminamos un Pick, pasar a modo Place
         if self.worker.current_state_value == 'idle':
@@ -337,14 +333,14 @@ class PickAndPlaceController(QObject):
             else:
                 # Terminamos Place, regresamos a Pick. Reactivamos camara y reasociamos esfera.
                 if self._current_color:
-                    self.signal_manager.reattach_sphere_request.emit(
+                    bus.pp_reattach_sphere_request.emit(
                         self._current_color)
                     self._current_color = None
 
-                self.signal_manager.search_circle_request.emit(True)
+                bus.pp_search_circle_request.emit(True)
                 self.overlay.set_mode('pick')
 
-        self.signal_manager.change_mode_signal.emit(Modes.PICK_PLACE)
+        bus.pp_change_mode_signal.emit(Modes.PICK_PLACE)
 
     @pyqtSlot(str)
     def _on_sequence_failed(self, reason):
@@ -354,15 +350,15 @@ class PickAndPlaceController(QObject):
             reason (str): Descripción del error.
         """
         # Desactivamos flag antes de reactivar camara
-        self.signal_manager.set_pick_place_running(False)
+        bus.pp_set_running(False)
 
         # Reactivar búsqueda de esferas y reasociar esfera en caso de fallo
         if self._current_color:
-            self.signal_manager.reattach_sphere_request.emit(
+            bus.pp_reattach_sphere_request.emit(
                 self._current_color)
             self._current_color = None
 
-        self.signal_manager.search_circle_request.emit(True)
+        bus.pp_search_circle_request.emit(True)
 
         self.noti_manager.notify(
             f'Secuencia fallida de PickAndPlace: {reason}', NotificationType.DIALOG_WARNING)
@@ -394,8 +390,8 @@ class PickAndPlaceController(QObject):
             self.graph_controller.reset_cartesian_plot()
         self.overlay.set_mode('pick')
         self._current_color = None
-        self.signal_manager.search_circle_request.emit(True)
-        self.signal_manager.set_pick_place_running(False)
+        bus.pp_search_circle_request.emit(True)
+        bus.pp_set_running(False)
 
     def pause(self):
         """Pausa el worker de Pick and Place."""
@@ -429,4 +425,4 @@ class PickAndPlaceController(QObject):
                     (alpha * new) + ((1 - alpha) * old)
                     for new, old in zip(positions, self._smoothed_pos)
                 ]
-        SimulationSignalManager.get_instance().update_robot_from_kinematics.emit(self._smoothed_pos)
+        bus.sim_update_robot_from_kinematics.emit(self._smoothed_pos)

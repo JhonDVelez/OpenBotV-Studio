@@ -7,7 +7,7 @@ configuración de escalas, visibilidad, exportación de datos y temas.
 
 Conexiones:
     - Escucha `render_ready` del `PlotWorker` para actualizar el widget.
-    - Responde a cambios de tema mediante `ThemeSignalManager`.
+    - Responde a cambios de tema mediante `bus.theme_changed`.
     - Proporciona un menú contextual para interacción directa del usuario.
 """
 
@@ -16,7 +16,7 @@ from PyQt6.QtCore import QObject, pyqtSlot, Qt
 from PyQt6.QtWidgets import QMenu, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QPushButton, QFileDialog, QMessageBox
 from src.features.graph.plots.plot_widget import PlotWidget
 from src.features.graph.plots.plot_worker import PlotWorker
-from src.services.data.signals import ConfigSignalManager, ThemeSignalManager
+from src.services.data.signals import bus
 
 
 class PlotController(QObject):
@@ -82,7 +82,7 @@ class PlotController(QObject):
         self._worker.render_ready.connect(self._widget.set_curves_data)
 
         # Sincronización de Tema visual
-        ThemeSignalManager.get_instance().theme_changed.connect(self._widget.apply_theme)
+        bus.theme_changed.connect(self._widget.apply_theme)
 
         # Menú contextual para interacción
         self._widget.context_menu_requested.connect(self._show_context_menu)
@@ -316,8 +316,8 @@ class PlotController(QObject):
         """
         # Cargar config completa solo cuando hay un cambio pendiente
         if self._pending_config is None:
-            config_manager = ConfigSignalManager.get_instance()
-            self._pending_config = config_manager.get_param(
+            config_manager = bus
+            self._pending_config = bus.cfg_get_param(
                 "graphics.json", "grid", self._graph_type)
         if self._pending_config and len(self._pending_config) > self._graph_index:
             self._pending_config[self._graph_index][index] = value
@@ -328,8 +328,8 @@ class PlotController(QObject):
         """
         if self._pending_config is None:
             return
-        config_manager = ConfigSignalManager.get_instance()
-        config_manager.request_change(
+        config_manager = bus
+        bus.cfg_request_change(
             "graphics.json", ["grid", self._graph_type], self._pending_config)
         self._pending_config = None
 

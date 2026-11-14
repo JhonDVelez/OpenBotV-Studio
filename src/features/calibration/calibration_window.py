@@ -9,18 +9,17 @@ de cámaras, integrando menús, barra de título personalizada y servicios de te
 import os
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout
 from PyQt6.QtCore import QCoreApplication
-from PyQt6.QtGui import QIcon, QScreen
 from qframelesswindow import FramelessMainWindow
-from src.services.data.signals import ThemeSignalManager
+from src.services.data.signals import bus
 from src.services.styling import ThemeManager
-from src.main_window.mixins.main_title_bar_mixin import MainTitleBarMixin
-from src.features.calibration.mixins import CalibrationMenuMixin
+from src.services.ui import window_chrome
+from src.main_window.title_bar import AppTitleBar
 from src.features.calibration.calibration_controller import CalibrationController
 from src.services.devices.device_monitor import get_device_monitor
 from src.services.devices import CameraDevices
 
 
-class CameraCalibrationWindow(FramelessMainWindow, CalibrationMenuMixin):
+class CameraCalibrationWindow(FramelessMainWindow):
     """
     Ventana independiente para la calibración de la cámara.
 
@@ -37,9 +36,7 @@ class CameraCalibrationWindow(FramelessMainWindow, CalibrationMenuMixin):
         self.setWindowTitle("Calibración De Cámara")
 
         # 1. Inicializar managers y atributos base
-        self._theme_signal_manager = ThemeSignalManager.get_instance()
-        self.sun_icon = QIcon(os.path.join("icons:sun.png"))
-        self.moon_icon = QIcon(os.path.join("icons:moon.png"))
+        self._theme_signal_manager = bus
 
         # 2. Configurar estructura base de la ventana
         self.__setup_base_ui()
@@ -62,9 +59,10 @@ class CameraCalibrationWindow(FramelessMainWindow, CalibrationMenuMixin):
         self._root_layout.setSpacing(0)
 
         # Menus y Barra de Titulo personalizada
-        self.create_calibration_menu()
-        self.create_status_bar()
-        self.title_bar = MainTitleBarMixin(self, "Calibración De La Cámara")
+        self.menu_bar = window_chrome.build_menu_bar(self)
+        window_chrome.build_theme_action(self)
+        window_chrome.build_status_bar(self)
+        self.title_bar = AppTitleBar(self, "Calibración De La Cámara")
         self.setTitleBar(self.title_bar)
         self._root_layout.addWidget(self.title_bar)
 
@@ -110,7 +108,7 @@ class CameraCalibrationWindow(FramelessMainWindow, CalibrationMenuMixin):
             self.theme_action.triggered.connect(
                 self.theme_manager.toggle_theme_event)
 
-        self._theme_signal_manager.theme_changed.connect(
+        bus.theme_changed.connect(
             self._on_theme_changed)
 
     def _on_theme_changed(self, is_dark: bool) -> None:

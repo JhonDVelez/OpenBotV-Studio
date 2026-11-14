@@ -17,7 +17,7 @@ from src.features.camera import CameraController
 from src.features.camera.camera_worker import CameraWorker
 from src.features.color.color_worker import ColorWorker
 from src.features.color.color_widget import ColorWidget
-from src.services.data.signals import ConfigSignalManager
+from src.services.data.signals import bus
 from src.services.ui.notification_manager import NotificationManager
 from src.services.data.enums.types import NotificationType
 
@@ -63,8 +63,8 @@ class ColorController(QObject):
         """
         Carga los valores HSV iniciales desde el archivo de configuración camera.json.
         """
-        config_manager = ConfigSignalManager.get_instance()
-        hsv_config = config_manager.get_param(
+        config_manager = bus
+        hsv_config = bus.cfg_get_param(
             "camera.json", "hsv_colors", default={})
         if hsv_config:
             # Usar el primer color disponible como default para inicializar sliders
@@ -162,8 +162,8 @@ class ColorController(QObject):
         Args:
             color (str): Nombre del color seleccionado (e.g. 'azul').
         """
-        config_manager = ConfigSignalManager.get_instance()
-        hsv_config = config_manager.get_param(
+        config_manager = bus
+        hsv_config = bus.cfg_get_param(
             "camera.json", "hsv_colors", default={})
         if color in hsv_config:
             values = hsv_config[color]
@@ -188,7 +188,7 @@ class ColorController(QObject):
                 f"Error al leer configuración de color: {e}", NotificationType.TOAST_ERROR)
             return
 
-        ConfigSignalManager.get_instance().request_change(
+        bus.cfg_request_change(
             "camera.json", ["hsv_colors", color], values)
         self.noti_manager.notify(
             f"Configuración guardada para {color}: {values}", NotificationType.TOAST_SUCCESS)

@@ -19,7 +19,7 @@ from src.features.calibration.calibration_worker import CalibrationWorker
 from src.features.calibration.calibration_widget import CalibrationWidget
 from src.features.camera.camera_worker import CameraWorker
 from src.services.ui.calibration_result_dialog import CalibrationResultDialog
-from src.services.data.signals import ConfigSignalManager
+from src.services.data.signals import bus
 
 
 class CalibrationController(QObject):
@@ -121,10 +121,10 @@ class CalibrationController(QObject):
             error (float): Error de reproducción final.
         """
         # Guardar en configuración
-        config_manager = ConfigSignalManager.get_instance()
-        config_manager.request_change(
+        config_manager = bus
+        bus.cfg_request_change(
             "camera.json", ["matrix"], matrix.tolist())
-        config_manager.request_change(
+        bus.cfg_request_change(
             "camera.json", ["distortion coefficients"], dist.tolist())
 
         # Mostrar diálogo de resultados

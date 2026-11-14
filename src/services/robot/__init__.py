@@ -8,8 +8,8 @@ RobotWorker (comunicación serial) y RobotCompensator
 Señales:
     - RobotWorker.data_received: Emitida al recibir telemetría válida
       desde la placa OpenCM9.04.
-    - PhysicalSignalManager.is_connected: Estado de la conexión serial.
-    - PhysicalSignalManager.data_received: Datos de telemetría recibidos.
+    - bus.phy_is_connected: Estado de la conexión serial.
+    - bus.phy_data_received: Datos de telemetría recibidos.
 """
 
 from .robot_controller import RobotController

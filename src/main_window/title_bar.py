@@ -1,19 +1,21 @@
 """
-Módulo que define la barra de título personalizada de la aplicación.
+Barra de título personalizada de la aplicación.
 
-Integra la barra de menú, el título del programa y los botones de control
-de ventana (minimizar, maximizar, cerrar) en una interfaz sin bordes
-(frameless) basada en qframelesswindow.
+Define AppTitleBar (antiguo MainTitleBarMixin, renombrado porque en
+realidad es un widget propio, no un mixin). Integra la barra de menú,
+el título del programa y los botones de control de ventana (minimizar,
+maximizar, cerrar) en una interfaz sin bordes (frameless) basada en
+qframelesswindow.
 """
 
 from PyQt6.QtWidgets import QHBoxLayout, QWidget, QToolButton, QLabel, QSizePolicy
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont, QPainter, QPixmap
 from qframelesswindow import TitleBarBase
-from src.services.data.signals import ThemeSignalManager
+from src.services.data.signals import bus
 
 
-class MainTitleBarMixin(TitleBarBase):
+class AppTitleBar(TitleBarBase):
     """
     Barra de título personalizada para ventanas frameless.
 
@@ -32,8 +34,8 @@ class MainTitleBarMixin(TitleBarBase):
         """
         super().__init__(parent)
         self.parent_class = parent
-        self._theme_signal = ThemeSignalManager.get_instance()
-        # self._theme_signal.theme_changed.connect(self._on_theme_changed)
+        self._theme_signal = bus
+        # bus.theme_changed.connect(self._on_theme_changed)
 
         self.title_layout = QHBoxLayout(self)
         self.title_layout.setContentsMargins(0, 0, 0, 0)

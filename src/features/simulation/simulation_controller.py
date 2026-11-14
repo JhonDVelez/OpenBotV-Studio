@@ -13,12 +13,8 @@ Conexiones:
 
 from PyQt6.QtCore import pyqtSlot, QObject
 from src.services.simulation import PhysicsWorker
-from src.services.styling.theme_manger import ThemeSignalManager
-from src.services.data.signals import (
-    SimulationSignalManager, ConfigSignalManager,
-    SlidersSignalManager, KinematicsSignalManager
-)
-from src.services.data.signals.pick_place import PickPlaceSignalManager
+from src.services.data.signals import bus
+from src.services.data.signals import bus
 from src.services.data.timers import GlobalTimer
 from src.services.data.enums import Modes
 from src.services.ui.notification_manager import NotificationManager
@@ -51,8 +47,8 @@ class SimulationController(QObject):
         self._root_object = None
 
         # Sincronización de configuración de esfera (Mover arriba para que esté disponible en el callback)
-        self.config_manager = ConfigSignalManager.get_instance()
-        self.config_manager.config_updated.connect(self._on_config_updated)
+        self.config_manager = bus
+        bus.cfg_config_updated.connect(self._on_config_updated)
 
         # Inicializar Fisica antes que la UI para que esté disponible en init_pybullet_processing
         self.physics_worker = PhysicsWorker(self.robot_id)
@@ -62,16 +58,16 @@ class SimulationController(QObject):
             preloaded_container, self.init_pybullet_processing).get_simulation_widget()
 
         # Conexiones de señales globales (Escuchar al DataController)
-        self.simulation_signal_manager = SimulationSignalManager.get_instance()
-        self.pick_place_signal_manager = PickPlaceSignalManager.get_instance()
-        self.simulation_signal_manager.update_pybullet_signal.connect(
+        self.simulation_signal_manager = bus
+        self.pick_place_signal_manager = bus
+        bus.sim_update_pybullet_signal.connect(
             self.physics_worker.update_target)
 
         # Conexiones de feedback local del worker hacia el bus global
         self.physics_worker.model_updated.connect(
-            self.simulation_signal_manager.model_position_signal.emit)
+            bus.sim_model_position_signal.emit)
         self.physics_worker.sensor_updated.connect(
-            self.simulation_signal_manager.sensor_position_signal.emit)
+            bus.sim_sensor_position_signal.emit)
 
         # Orquestación de Timers para el worker
         self.global_timer = GlobalTimer.get_instance()
@@ -83,58 +79,58 @@ class SimulationController(QObject):
             self.physics_worker.update_graphs)
 
         # Manejo de tema
-        self.theme_manager = ThemeSignalManager().get_instance()
+        self.theme_manager = bus
         self.theme_manager.theme_changed.connect(self._apply_root_theme)
 
         # Gestion de prioridad de modo
         self._active_source = Modes.SLIDERS
         
-        SlidersSignalManager.get_instance().change_mode_signal.connect(
+        bus.sld_change_mode_signal.connect(
             lambda mode: self._set_active_source(Modes.SLIDERS))
-        KinematicsSignalManager.get_instance().change_mode_signal.connect(
+        bus.kin_change_mode_signal.connect(
             lambda mode: self._set_active_source(Modes.KINEMATIC))
-        PickPlaceSignalManager.get_instance().change_mode_signal.connect(
+        bus.pp_change_mode_signal.connect(
             lambda mode: self._set_active_source(Modes.PICK_PLACE))
 
         # Escuchar señales especificas
-        self.simulation_signal_manager.update_robot_from_kinematics.connect(
+        bus.sim_update_robot_from_kinematics.connect(
             self._update_from_kinematics)
-        self.simulation_signal_manager.update_robot_from_sliders.connect(
+        bus.sim_update_robot_from_sliders.connect(
             self._update_from_sliders)
-        self.simulation_signal_manager.update_robot_from_simulation.connect(
+        bus.sim_update_robot_from_simulation.connect(
             self._update_from_simulation)
             
-        self.simulation_signal_manager.sphere_pos_from_camera.connect(
+        bus.sim_sphere_pos_from_camera.connect(
             self.update_sphere_pose_from_camera)
-        self.simulation_signal_manager.sphere_pos_from_pybullet.connect(
+        bus.sim_sphere_pos_from_pybullet.connect(
             self.update_sphere_pose_from_pybullet)
-        self.simulation_signal_manager.clear_spheres.connect(
+        bus.sim_clear_spheres.connect(
             self.clear_spheres)
-        self.simulation_signal_manager.release_sphere.connect(
+        bus.sim_release_sphere.connect(
             self.physics_worker.release_sphere)
-        self.simulation_signal_manager.reattach_sphere.connect(
+        bus.sim_reattach_sphere.connect(
             self.physics_worker.reattach_sphere)
-        self.simulation_signal_manager.sphere_radius_changed.connect(
+        bus.sim_sphere_radius_changed.connect(
             self.physics_worker.update_sphere_scale)
 
         # Nuevas conexiones para orquestación vía DataController
-        self.simulation_signal_manager.start_simulation.connect(
+        bus.sim_start_simulation.connect(
             self.start_simulation)
-        self.simulation_signal_manager.pause_simulation.connect(
+        bus.sim_pause_simulation.connect(
             self.pause_simulation)
-        self.simulation_signal_manager.resume_simulation.connect(
+        bus.sim_resume_simulation.connect(
             self.resume_simulation)
-        self.simulation_signal_manager.stop_simulation.connect(
+        bus.sim_stop_simulation.connect(
             self.stop_simulation)
 
         # Nuevas conexiones para orquestación vía DataController
-        self.simulation_signal_manager.start_simulation.connect(
+        bus.sim_start_simulation.connect(
             self.start_simulation)
-        self.simulation_signal_manager.pause_simulation.connect(
+        bus.sim_pause_simulation.connect(
             self.pause_simulation)
-        self.simulation_signal_manager.resume_simulation.connect(
+        bus.sim_resume_simulation.connect(
             self.resume_simulation)
-        self.simulation_signal_manager.stop_simulation.connect(
+        bus.sim_stop_simulation.connect(
             self.stop_simulation)
 
         self.noti_manager = NotificationManager.get_instance()
@@ -151,13 +147,13 @@ class SimulationController(QObject):
             root_object, self.robot_id)
 
         # Sincronizar radio inicial
-        radius = self.config_manager.get_param(
+        radius = bus.cfg_get_param(
             "camera.json", "sphere_radius", default=20.0)
         self.simulation_worker.update_sphere_radius(radius)
         self.physics_worker.update_sphere_scale(radius)
 
         # Sincronizar configuraciones de simulación iniciales
-        sim_settings = self.config_manager.get_param(
+        sim_settings = bus.cfg_get_param(
             "settings.json", "simulation", default={})
         prop_map = {
             "shadows": "showShadows",
@@ -212,7 +208,7 @@ class SimulationController(QObject):
         if filename == "camera.json" and "sphere_radius" in keys:
             radius = float(value)
             # Notificar cambio a traves del bus global
-            self.simulation_signal_manager.sphere_radius_changed.emit(radius)
+            bus.sim_sphere_radius_changed.emit(radius)
             # Actualizar QML (via SimulationWorker)
             if self.simulation_worker:
                 self.simulation_worker.update_sphere_radius(radius)
@@ -239,12 +235,12 @@ class SimulationController(QObject):
 
     @pyqtSlot(list)
     def _update_from_kinematics(self, joint_positions: list):
-       #print(f"[DEBUG SimulationController] _update_from_kinematics: active_source={self._active_source}, pp_running={self.pick_place_signal_manager.is_pick_place_running()}, positions={joint_positions}")
+       #print(f"[DEBUG SimulationController] _update_from_kinematics: active_source={self._active_source}, pp_running={bus.pp_is_running()}, positions={joint_positions}")
         if self._active_source == Modes.SLIDERS:
             print("[DEBUG SimulationController] BLOCKED kinematics update because active_source is SLIDERS")
             return
         # Actualizar si el modo activo es cinemática o pick & place, o si la secuencia P&P está corriendo
-        if self._active_source in (Modes.KINEMATIC, Modes.PICK_PLACE) or self.pick_place_signal_manager.is_pick_place_running():
+        if self._active_source in (Modes.KINEMATIC, Modes.PICK_PLACE) or bus.pp_is_running():
             self.update_simulation(joint_positions)
         else:
             print("[DEBUG SimulationController] DISCARDED kinematics update: conditions not met")
@@ -283,7 +279,7 @@ class SimulationController(QObject):
         Args:
             poses (dict): Coordenadas cartesianas de las esferas.
         """
-        if self.pick_place_signal_manager.is_pick_place_running():
+        if bus.pp_is_running():
             return
         if self.simulation_worker is not None:
             self.physics_worker.update_sphere_initial_positions(poses)
@@ -291,7 +287,7 @@ class SimulationController(QObject):
     @pyqtSlot()
     def clear_spheres(self):
         """        Limpia las esferas de la simulación si no hay pick and place en curso."""
-        if self.pick_place_signal_manager.is_pick_place_running():
+        if bus.pp_is_running():
             return
         if self.physics_worker:
             self.physics_worker.hide_all_spheres()

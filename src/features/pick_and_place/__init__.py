@@ -6,7 +6,7 @@ pick and place una vez se obtienen las posiciones de las esfera, permitiendo env
 datos objetivos de robot tanto en simulación como en físico.
 
 Conexiones:
-    - PickAndPlaceController coordina con PickPlaceSignalManager (bus global).
+    - PickAndPlaceController coordina con el bus de señales global (señales pp_).
     - PickAndPlaceWorker ejecuta la máquina de estados con feedback del robot/sim.
     - PickPlaceState define los estados de la secuencia de pickup.
 """

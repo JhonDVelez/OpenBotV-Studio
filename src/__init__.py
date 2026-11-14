@@ -3,7 +3,7 @@ Paquete raíz de la aplicación Openbotv Studio.
 
 Expone los subpaquetes principales del sistema:
 - features: Módulos funcionales (calibración, cámara, color, gráficos, cinemática, etc.).
-- main_window: Ventana principal y mixins de inicialización/menú/title bar.
+- main_window: Ventana principal y módulos builders de menú/layout/acciones.
 - resources: Recursos estáticos (iconos, imágenes, QML).
 - services: Servicios transversales (datos, dispositivos, robot, simulación, etc.).
 """

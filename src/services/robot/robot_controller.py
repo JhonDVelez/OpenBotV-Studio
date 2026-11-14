@@ -8,12 +8,12 @@ de fachada para ocultar la complejidad del worker y compensador.
 Conexiones:
     - Combina RobotWorker (comunicación serial) y RobotCompensator
       (procesamiento) bajo una única interfaz.
-    - Utiliza PhysicalSignalManager para reportar estado de conexión.
+    - Utiliza bus (señales phy_) para reportar estado de conexión.
 """
 
 from PyQt6.QtCore import QObject
 from .robot_worker import RobotWorker
-from src.services.data.signals import PhysicalSignalManager
+from src.services.data.signals import bus
 
 
 class RobotController(QObject):
@@ -29,7 +29,7 @@ class RobotController(QObject):
     def __init__(self, com: str):
         super().__init__()
         self._worker = RobotWorker(com)
-        self._signal_manager = PhysicalSignalManager.get_instance()
+        self._signal_manager = bus
 
         # Conexiones Locales (Worker -> Controller)
         self._worker.data_received.connect(self._on_data_received)
@@ -37,21 +37,21 @@ class RobotController(QObject):
             self._on_connection_changed)
 
         # Conexiones Globales (SignalManager -> Controller)
-        self._signal_manager.send_to_robot.connect(self.move_to)
-        self._signal_manager.start_service.connect(self.start_service)
-        self._signal_manager.stop_service.connect(self.stop_service)
-        self._signal_manager.pause_service.connect(self.pause_service)
-        self._signal_manager.resume_service.connect(self.resume_service)
+        bus.phy_send_to_robot.connect(self.move_to)
+        bus.phy_start_service.connect(self.start_service)
+        bus.phy_stop_service.connect(self.stop_service)
+        bus.phy_pause_service.connect(self.pause_service)
+        bus.phy_resume_service.connect(self.resume_service)
         
         self._on_connection_changed(self._worker.get_is_connected())
 
     def _on_data_received(self, positions, temperatures):
         """Re-emite datos locales al bus global."""
-        self._signal_manager.data_received.emit(positions, temperatures)
+        bus.phy_data_received.emit(positions, temperatures)
 
     def _on_connection_changed(self, connected):
         """Actualiza el estado de conexión en el bus global."""
-        self._signal_manager.is_connected = connected
+        bus.phy_is_connected = connected
 
     # --- Getters ---
 

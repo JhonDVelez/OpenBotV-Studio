@@ -13,7 +13,7 @@
     NOTA: Este módulo mantiene backwards compatibility. El código nuevo debería importar
     directamente de los submódulos:
     - from data.enums import Modes, Units, Domains
-    - from data.signals import SimulationSignalManager, PhysicalSignalManager, ...
+    - from data.signals import bus  # bus único de señales (SignalBus)
     - from data.timers import GlobalTimer, FrameCounter
     - from data.utils import deg_to_rad, rad_to_deg
 """

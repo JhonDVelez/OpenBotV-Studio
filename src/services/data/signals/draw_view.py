@@ -6,7 +6,7 @@ geometrías de esferas) que se dibujan sobre el frame de cámara.
 """
 
 import threading
-from .config import ConfigSignalManager
+from .bus import bus
 
 
 class DrawViewSignalManager:
@@ -42,8 +42,7 @@ class DrawViewSignalManager:
         Inicializa el estado desde la configuración persistente.
         """
         self._lock = threading.Lock()
-        config_manager = ConfigSignalManager.get_instance()
-        state = config_manager.get_param(
+        state = bus.cfg_get_param(
             "settings.json", "camera", "view", default={})
         self._charuco = state.get("charuco", False)
         self._circle = state.get("circle", False)
@@ -57,8 +56,8 @@ class DrawViewSignalManager:
         """
         with self._lock:
             self._charuco = checked
-            ConfigSignalManager.get_instance().request_change("settings.json", ["camera",
-                                                              "view", "charuco"], checked)
+            bus.cfg_request_change("settings.json", ["camera",
+                                      "view", "charuco"], checked)
 
     def set_circle(self, checked: bool):
         """
@@ -69,8 +68,8 @@ class DrawViewSignalManager:
         """
         with self._lock:
             self._circle = checked
-            ConfigSignalManager.get_instance().request_change("settings.json", ["camera",
-                                                              "view", "circle"], checked)
+            bus.cfg_request_change("settings.json", ["camera",
+                                      "view", "circle"], checked)
 
     def get_state(self):
         """

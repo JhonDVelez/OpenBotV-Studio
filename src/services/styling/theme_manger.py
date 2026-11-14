@@ -12,7 +12,7 @@ import qdarktheme.dist.light.stylesheet
 from src.services.styling.theme_stylesheet import (
     dark_style, light_style, ADS_DARK_STYLE, ADS_LIGHT_STYLE
 )
-from src.services.data.signals import ThemeSignalManager, ConfigSignalManager
+from src.services.data.signals import bus
 
 
 class ThemeManager:
@@ -31,19 +31,19 @@ class ThemeManager:
         self.laser_b = QPixmap("img:laser_b.png").scaledToHeight(
             20, Qt.TransformationMode.SmoothTransformation)
 
-        self.theme_signal_manager = ThemeSignalManager.get_instance()
+        self.theme_signal_manager = bus
 
     def update_theme(self, scheme: Qt.ColorScheme | None):
         """ Se ejecuta cada vez que cambia el tema del sistema.
             Ahora incluye lógica de fallback para evitar 'Tema desconocido'.
         """
-        config_manager = ConfigSignalManager.get_instance()
+        config_manager = bus
 
         # Si el esquema es inválido o None, intentamos determinarlo
         if scheme not in [Qt.ColorScheme.Dark, Qt.ColorScheme.Light]:
             if not self.actual_theme in [Qt.ColorScheme.Dark, Qt.ColorScheme.Light]:
                 # Recuperar de la configuración guardada
-                theme_str = config_manager.get_param(
+                theme_str = bus.cfg_get_param(
                     "settings.json", "theme", default="dark").lower()
                 self.actual_theme = Qt.ColorScheme.Dark if theme_str == "dark" else Qt.ColorScheme.Light
 
@@ -51,16 +51,16 @@ class ThemeManager:
 
         if scheme == Qt.ColorScheme.Dark:
             self._load_dark_theme()
-            config_manager.request_change(
+            bus.cfg_request_change(
                 "settings.json", ["theme"], "dark")
         else:
             self._load_light_theme()
-            config_manager.request_change(
+            bus.cfg_request_change(
                 "settings.json", ["theme"], "light")
 
         # Emitir señal según el estado actual
         is_dark = self.actual_theme == Qt.ColorScheme.Dark
-        self.theme_signal_manager.emit_theme_change(is_dark)
+        bus.theme_emit_change(is_dark)
 
         self.actual_theme = scheme
 
@@ -74,7 +74,7 @@ class ThemeManager:
 
     def load_current_theme(self):
         """Aplica el tema guardado."""
-        self.update_theme(self.theme_signal_manager.get_current_theme())
+        self.update_theme(bus.theme_get_current())
 
     def toggle_theme_event(self):
         """Cambia manualmente entre tema claro y oscuro.
@@ -124,7 +124,7 @@ class ThemeManager:
         if hasattr(self.parent, 'theme_action') and hasattr(self, 'sun_icon'):
             self.parent.theme_action.setIcon(self.sun_icon)
 
-        self.theme_signal_manager.set_current_theme(Qt.ColorScheme.Dark)
+        bus.theme_set_current(Qt.ColorScheme.Dark)
         self._update_toolbar_icons(True)
         self._update_sim_icons(True)
 
@@ -161,7 +161,7 @@ class ThemeManager:
         if hasattr(self.parent, 'theme_action') and hasattr(self, 'moon_icon'):
             self.parent.theme_action.setIcon(self.moon_icon)
 
-        self.theme_signal_manager.set_current_theme(Qt.ColorScheme.Light)
+        bus.theme_set_current(Qt.ColorScheme.Light)
         self._update_toolbar_icons(False)
         self._update_sim_icons(False)
 
@@ -177,7 +177,7 @@ class ThemeManager:
         for action_name, icon_name in mapping:
             if not hasattr(self.parent, action_name):
                 continue
-            icon = self.theme_signal_manager.get_toolbar_icon(
+            icon = bus.theme_get_toolbar_icon(
                 icon_name, is_dark)
             getattr(self.parent, action_name).setIcon(icon)
 
@@ -191,6 +191,6 @@ class ThemeManager:
         for action_name, icon_name in mapping:
             if not hasattr(self.parent, action_name):
                 continue
-            icon = self.theme_signal_manager.get_toolbar_icon(
+            icon = bus.theme_get_toolbar_icon(
                 icon_name, is_dark)
             getattr(self.parent, action_name).setIcon(icon)

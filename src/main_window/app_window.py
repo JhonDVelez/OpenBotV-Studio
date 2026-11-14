@@ -1,9 +1,11 @@
 """
 Módulo principal de la interfaz gráfica de usuario.
 
-Define la clase MainWindow, la cual orquesta la integración de múltiples mixins
-para gestionar la inicialización, acciones, menús y la barra de título personalizada.
-Centraliza el control de la simulación y la conexión con el hardware.
+Define la clase MainWindow, la ventana principal frameless de la
+aplicación. La construcción de menús, layout y toolbar vive en módulos
+de funciones (menu_builder, layout_builder, action_handlers, title_bar);
+MainWindow conserva el estado y orquesta el ciclo de vida de los
+sub-sistemas.
 
 Conexiones:
     - Hereda de `FramelessMainWindow` para una estética moderna sin bordes.
@@ -14,24 +16,26 @@ Conexiones:
 from qframelesswindow import FramelessMainWindow
 from PyQt6.QtWidgets import QMessageBox, QVBoxLayout, QWidget, QLabel, QApplication, QMainWindow
 from PyQt6.QtCore import QCoreApplication, Qt
-from src.main_window.mixins import (
-    MainInitMixin, MainActionsMixin, MainMenuMixin, MainTitleBarMixin)
+
+from src.main_window.action_handlers import wire_main_actions
+from src.main_window import layout_builder, menu_builder
+from src.main_window.title_bar import AppTitleBar
 from src.services.devices import CameraDevices
 from src.services.devices.device_monitor import get_device_monitor
-from src.services.data.signals import SearchSignalManager, ThemeSignalManager, ConfigSignalManager
+from src.services.data.signals import bus
 from src.services.styling import ThemeManager
 from src.services.data import config_manager, DataController
 from src.services.ui.notification_manager import NotificationManager
 from src.services.data.enums.types import NotificationType
 
 
-class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuMixin):
+class MainWindow(FramelessMainWindow):
     """
     Ventana principal de la aplicación de control del brazo robótico.
 
-    Hereda de múltiples mixins que organizan la estructura de la interfaz,
-    widgets y comportamiento de las diferentes secciones (Cámara, Gráficos,
-    Controles y Simulación).
+    La construcción de la interfaz (menú, docks, toolbar, barra de
+    estado) está delegada a los módulos de funciones builders; esta
+    clase guarda el estado y los controladores de la aplicación.
     """
 
     def __init__(self, quick3d, robot_id):
@@ -44,11 +48,11 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
         """
         super().__init__()
         # Inicialización centralizada de configuración (antes de cualquier controller)
-        self.config_manager = ConfigSignalManager.get_instance()
+        self.config_manager = bus
         config_manager.init_config()
         for filename in config_manager.DEFAULTS.keys():
             data = config_manager.load(filename)
-            self.config_manager.set_all_config(filename, data)
+            bus.cfg_set_all_config(filename, data)
 
         # Orquestador Central de Datos e Inter-Controladores
         self.data_controller = DataController()
@@ -60,8 +64,8 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
         self.camera_paused = False
         self.hab_simulation = True
         self.theme_manager = ThemeManager(self)
-        self.theme_signal_manager = ThemeSignalManager.get_instance()
-        self.theme_signal_manager.theme_changed.connect(
+        self.theme_signal_manager = bus
+        bus.theme_changed.connect(
             self._on_external_theme_changed)
         self.com = None
         self.com_connected_label = QLabel("Micro no conectado")
@@ -78,8 +82,8 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
         container_layout.setSpacing(0)
 
         # Barra de titulo personalizada
-        self.create_main_menu()
-        self.title_bar = MainTitleBarMixin(self)
+        menu_builder.build_main_menu(self)
+        self.title_bar = AppTitleBar(self)
         self.title_bar.setObjectName("title_bar")
         self.setTitleBar(self.title_bar)
         container_layout.addWidget(self.title_bar)
@@ -89,22 +93,22 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
         self.inner_window.setObjectName("inner_window")
         container_layout.addWidget(self.inner_window)
 
-        # setup_ui ahora gestiona los docks directamente en inner_window
-        self.setup_ui()
+        # setup_ui gestiona los docks directamente en inner_window
+        layout_builder.setup_ui(self)
 
-        # Inicializacion de servicios y controladores (definidos en Mixins)
-        self.create_status_bar()
-        self.init_camera()
-        self.init_controls()
-        
-        self.init_tool_bar()
-        self.init_simulation()
-        self.init_graphics()
-        
+        # Inicialización de servicios y controladores (módulos builders)
+        menu_builder.build_main_status_bar(self)
+        layout_builder.init_camera(self)
+        layout_builder.init_controls(self)
+
+        layout_builder.init_tool_bar(self)
+        layout_builder.init_simulation(self)
+        layout_builder.init_graphics(self)
+
         # Link kinematics to P&P
         self.pick_and_place_controller.set_kinematics_controller(self.kinematics_controller, self.graph_controller)
-        
-        self.setup_connections()
+
+        wire_main_actions(self)
 
         # Añadir toolbar de acciones
         self.inner_window.addToolBar(
@@ -113,7 +117,7 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
         )
 
         # Cargar configuración de visibilidad de paneles desde archivo
-        settings: dict = self.config_manager.get_param(
+        settings: dict = bus.cfg_get_param(
             "settings.json", default={})
         content = settings.get("content", {})
         mode = settings.get('mode', {})
@@ -136,13 +140,13 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
 
         # Cargar configuración de búsqueda visual
         camera = settings.get("camera", {})
-        search_manager = SearchSignalManager.get_instance()
+        search_manager = bus
         for key, widget in camera.items():
             state = bool(camera[key])
             if key == "charuco":
-                search_manager.set_charuco(state)
+                bus.search_set_charuco(state)
             elif key == "circle":
-                search_manager.set_circle(state)
+                bus.search_set_circle(state)
 
         self.hab_simulation = settings.get(
             "simulation", {}).get("activated", True)
@@ -165,10 +169,11 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
         # Instalar monitor de dispositivos (Cámaras y Puertos COM)
         self.camera_devices = CameraDevices()
         self._device_monitor = get_device_monitor(
-            self.get_com_ports, self.camera_devices.get_cameras)
+            lambda: menu_builder.refresh_com_ports(self),
+            self.camera_devices.get_cameras)
         self._device_monitor.install_filter(QCoreApplication.instance())
 
-        self.get_com_ports()
+        menu_builder.refresh_com_ports(self)
         self.camera_devices.get_cameras()
         self.setCentralWidget(container)
 
@@ -182,7 +187,7 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
             w = win_cfg.get("width", 1280)
             h = win_cfg.get("height", 720)
             self.resize(w, h)
-            self.center_window()
+            layout_builder.center_window(self)
 
         noti_manager = NotificationManager.get_instance()
         noti_manager.set_main_window(self)
@@ -195,95 +200,6 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
             is_dark (bool): True si el nuevo tema es oscuro.
         """
         self.theme_manager.apply_theme_from_signal(is_dark)
-
-    def setup_connections(self):
-        """
-        Configura todas las conexiones de señales y slots de la interfaz.
-
-        Enlaza botones, acciones de menu y eventos de controladores con sus
-        respectivas funciones de respuesta.
-        """
-        # Visibilidad de ventanas/paneles
-        if hasattr(self, 'cameraBox'):
-            if hasattr(self, 'camera_action'):
-                self.camera_action.triggered.connect(
-                    self.toggle_visibility_camera_event)
-        if hasattr(self, 'modelBox'):
-            if hasattr(self, 'model_action'):
-                self.model_action.triggered.connect(
-                    self.toggle_visibility_model_event)
-        if hasattr(self, 'graphs_action'):
-            self.graphs_action.triggered.connect(
-                self.toggle_visibility_graphs_event)
-        if hasattr(self, 'controls_action'):
-            self.controls_action.triggered.connect(
-                self.toggle_visibility_controls_event)
-
-        # Configuración de detección visual
-        search_manager = SearchSignalManager.get_instance()
-        if hasattr(self, 'charuco_action'):
-            self.charuco_action.toggled.connect(
-                self.toggle_charuco_search)
-            search_manager.charuco_search_changed.connect(
-                self.charuco_action.setChecked)
-        if hasattr(self, 'sphere_action'):
-            self.sphere_action.toggled.connect(
-                self.toggle_sphere_search)
-            search_manager.circle_search_changed.connect(
-                self.sphere_action.setChecked)
-        if hasattr(self, 'camera_calibration_action'):
-            self.camera_calibration_action.triggered.connect(
-                self.initiate_camera_calibration)
-        if hasattr(self, 'color_calibration_action'):
-            self.color_calibration_action.triggered.connect(
-                self.initiate_color_calibration)
-
-        # Visibilidad y uso de controles (Manual/Cinematico)
-        if hasattr(self, "sliders_action"):
-            self.sliders_action.toggled.connect(self.toggle_sliders_controls)
-        if hasattr(self, "kinematics_action"):
-            self.kinematics_action.toggled.connect(
-                self.toggle_kinematics_controls)
-        if hasattr(self, "pick_place_action"):
-            self.pick_place_action.toggled.connect(
-                self.toggle_pick_place_controls)
-
-        # Sincronizacion Kinematics -> Sliders
-        # (El worker de cinematica ahora opera de forma independiente
-        # con su propio serial, por lo que esta conexion ya no es necesaria)
-
-        # Botones de control de flujo (Start, Pause, Stop, Reset)
-        if hasattr(self, 'start_action'):
-            self.start_action.triggered.connect(self.start)
-        if hasattr(self, 'pause_action'):
-            self.pause_action.triggered.connect(self.pause)
-        if hasattr(self, 'stop_action'):
-            self.stop_action.triggered.connect(self.stop)
-        if hasattr(self, 'reset_action'):
-            self.reset_action.triggered.connect(self.reset)
-
-        # Activación de simulación física
-        if hasattr(self, 'simulation_action'):
-            self.simulation_action.triggered.connect(
-                self.toggle_activation_simulation_event)
-        if hasattr(self, 'shadows_action'):
-            self.shadows_action.triggered.connect(self.toggle_shadows_event)
-        if hasattr(self, 'grid_action'):
-            self.grid_action.triggered.connect(self.toggle_grid_event)
-        if hasattr(self, 'axes_action'):
-            self.axes_action.triggered.connect(self.toggle_axes_event)
-        if hasattr(self, 'labels_action'):
-            self.labels_action.triggered.connect(self.toggle_labels_event)
-        if hasattr(self, 'aa_action'):
-            self.aa_action.triggered.connect(self.toggle_aa_event)
-
-        # Control de temas y conexión de hardware
-        if hasattr(self, 'theme_action'):
-            self.theme_action.triggered.connect(
-                self.theme_manager.toggle_theme_event)
-
-        if hasattr(self, 'connect_action'):
-            self.connect_action.triggered.connect(self.connect_robot)
 
     def closeEvent(self, event):
         """

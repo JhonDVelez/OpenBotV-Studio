@@ -8,7 +8,7 @@ computacional del pipeline de visión.
 
 import threading
 from PyQt6.QtCore import pyqtSignal, QObject
-from src.services.data.signals import ConfigSignalManager
+from src.services.data.signals import bus
 
 
 class FrameCounter(QObject):
@@ -43,7 +43,7 @@ class FrameCounter(QObject):
         if FrameCounter._initialized:
             return
         super().__init__()
-        self._interval = ConfigSignalManager.get_instance().get_param(
+        self._interval = bus.cfg_get_param(
             "settings.json", "camera", "view", "interval", default=4)
         self._counter = 0
         self._lock = threading.Lock()
@@ -78,5 +78,5 @@ class FrameCounter(QObject):
         with self._lock:
             self._interval = int(interval)
             self._counter = 0
-            ConfigSignalManager.get_instance().request_change("settings.json", ["camera", "view",
+            bus.cfg_request_change("settings.json", ["camera", "view",
                                                                                 "interval"], self._interval)

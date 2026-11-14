@@ -15,7 +15,7 @@ from PyQt6.QtCore import QObject
 from src.features.sliders.sliders_widget import SlidersWidget
 from src.features.sliders.sliders_worker import SlidersWorker
 from src.services.data.enums import Modes
-from src.services.data.signals import SlidersSignalManager
+from src.services.data.signals import bus
 
 
 class SlidersController(QObject):
@@ -65,7 +65,7 @@ class SlidersController(QObject):
         """
         # Cambiar modo global a SLIDERS mediante el bus propio de la feature.
         # El DataController escucha y orquesta el resto del sistema.
-        SlidersSignalManager.get_instance().change_mode_signal.emit(Modes.SLIDERS)
+        bus.sld_change_mode_signal.emit(Modes.SLIDERS)
         
         # Actualizar el buffer interno del worker
         self._worker.update_single_value(index, value)
@@ -78,7 +78,7 @@ class SlidersController(QObject):
             status (list): Vector completo de posiciones articulares.
         """
         # Notificar el nuevo objetivo al bus propio. El DataController orquestará el resto.
-        SlidersSignalManager.get_instance().update_target_signal.emit(status)
+        bus.sld_update_target_signal.emit(status)
 
     # --- API Pública ---
 

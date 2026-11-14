@@ -6,7 +6,7 @@ y la recepción de telemetría (posición y temperatura) desde la placa de
 control (OpenCM9.04) utilizando un hilo dedicado.
 
 Conexiones:
-    - Utiliza `PhysicalSignalManager` para reportar el estado de conexión.
+    - Utiliza `bus` (señales phy_) para reportar el estado de conexión.
     - Emite `data_received` al recibir telemetría válida.
     - Recibe datos mediante una cola (`queue.Queue`) para evitar bloqueos.
 """

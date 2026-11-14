@@ -17,7 +17,7 @@ from src.features.graph.graph_widget import GraphWidget
 from src.features.graph.graph_worker import GraphWorker
 from src.features.graph.plots.plot_controller import PlotController
 from src.features.graph.cartesian_pid_plot import CartesianPIDPlot
-from src.services.data.signals import SimulationSignalManager, PhysicalSignalManager, ConfigSignalManager, ThemeSignalManager
+from src.services.data.signals import bus
 from src.services.data.utils import robotang_angulos
 
 
@@ -68,8 +68,8 @@ class GraphController(QObject):
         No los agrega al layout inmediatamente; delega esta tarea a _rearrange_plots
         para permitir una disposición responsiva.
         """
-        config_manager = ConfigSignalManager.get_instance()
-        config = config_manager.get_param("graphics.json", "grid", default={})
+        config_manager = bus
+        config = bus.cfg_get_param("graphics.json", "grid", default={})
 
         # Angular (6 motores)
         labels_ang = [f"motor {i+1}" for i in range(6)]
@@ -119,11 +119,11 @@ class GraphController(QObject):
         Configura el flujo de señales entre managers globales, workers y UI.
         """
         # Señales Globales -> Workers
-        sim_mgr = SimulationSignalManager.get_instance()
-        phy_mgr = PhysicalSignalManager.get_instance()
+        sim_mgr = bus
+        phy_mgr = bus
 
-        sim_mgr.update_graph_signal.connect(self._on_sim_data_received)
-        phy_mgr.data_received.connect(self._on_phy_data_received)
+        bus.sim_update_graph_signal.connect(self._on_sim_data_received)
+        bus.phy_data_received.connect(self._on_phy_data_received)
 
         # Kinematics Worker -> Cartesian PID Plot
         if self._kinematics_service:
@@ -137,9 +137,9 @@ class GraphController(QObject):
         self._widget.resize_requested.connect(self._rearrange_plots)
 
         # Cambio de Tema visual
-        theme_signal = ThemeSignalManager.get_instance()
-        theme_signal.theme_changed.connect(self._widget.get_image_handler().update_theme)
-        theme_signal.theme_changed.connect(self._cartesian_pid_plot.update_theme)
+        theme_signal = bus
+        bus.theme_changed.connect(self._widget.get_image_handler().update_theme)
+        bus.theme_changed.connect(self._cartesian_pid_plot.update_theme)
 
     @pyqtSlot(list)
     def _on_sim_data_received(self, data):
@@ -156,7 +156,7 @@ class GraphController(QObject):
         ang_data[4] *= -1
         ang_data[5] *= -1
         self._angular_worker.add_sim_data(ang_data)
-        if not PhysicalSignalManager.get_instance().is_connected:
+        if not bus.phy_is_connected:
             self._angular_worker.flush_pending()
 
     @pyqtSlot(list, list)

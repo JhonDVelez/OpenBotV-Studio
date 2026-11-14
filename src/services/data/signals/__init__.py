@@ -1,33 +1,23 @@
 """
-Paquete de gestores de señales del sistema.
+Bus de señales del sistema.
 
-Cada módulo define un SignalManager especializado (simulación, físico,
-búsqueda visual, vista de dibujo, cámara, tema) que extiende la clase
-base _SignalManager.
+Un único módulo define el bus: ``signals.bus`` con la clase ``SignalBus`` y
+la instancia compartida ``bus``. Todas las señales del proceso viven ahí,
+con prefijo de dominio (sim_, phy_, kin_, sld_, cam_, pp_, cfg_, search_,
+theme_). Los antiguos gestores por dominio (los 12 SignalManager) fueron
+eliminados; sus equivalentes en el bus están documentados en el docstring
+de ``bus.py``.
+
+Uso:
+    from src.services.data.signals import bus
+    bus.sim_update_robot_signal.emit(posiciones)
+    bus.cfg_request_change("settings.json", ["camera", "view"], valor)
 """
 
-from .base import _SignalManager
-from .simulation import SimulationSignalManager
-from .physical import PhysicalSignalManager
-from .search import SearchSignalManager
+from .bus import bus
 from .draw_view import DrawViewSignalManager
-from .camera import CameraSignalManager
-from .theme import ThemeSignalManager
-from .config import ConfigSignalManager
-from .pick_place import PickPlaceSignalManager
-from .sliders import SlidersSignalManager
-from .kinematics import KinematicsSignalManager
 
 __all__ = [
-    '_SignalManager',
-    'SimulationSignalManager',
-    'PhysicalSignalManager',
-    'SearchSignalManager',
+    'bus',
     'DrawViewSignalManager',
-    'CameraSignalManager',
-    'ThemeSignalManager',
-    'ConfigSignalManager',
-    'PickPlaceSignalManager',
-    'SlidersSignalManager',
-    'KinematicsSignalManager'
 ]

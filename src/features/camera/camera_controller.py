@@ -16,11 +16,7 @@ Conexiones:
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, QObject
 from src.features.camera.camera_widget import CameraWidget
 from src.features.camera.camera_worker import CameraWorker
-from src.services.data.signals import (
-    ThemeSignalManager, DrawViewSignalManager,
-    CameraSignalManager, ConfigSignalManager,
-    SearchSignalManager
-)
+from src.services.data.signals import bus, DrawViewSignalManager
 from src.services.ui.notification_manager import NotificationManager
 from src.services.data.enums.types import NotificationType
 
@@ -55,15 +51,15 @@ class CameraController(QObject):
         self.camera_index = None
         self.worker = None
 
-        self.config_manager = ConfigSignalManager.get_instance()
-        self.camera_config: dict = self.config_manager.get_param(
+        self.config_manager = bus
+        self.camera_config: dict = bus.cfg_get_param(
             "camera.json", default={})
-        init_view_config = self.config_manager.get_param(
+        init_view_config = bus.cfg_get_param(
             "settings.json", "camera", "view", default={})
-        self.theme_signal_manager = ThemeSignalManager.get_instance()
+        self.theme_signal_manager = bus
         self.draw_signal_manager = DrawViewSignalManager.get_instance()
-        self.camera_signal_manager = CameraSignalManager.get_instance()
-        self.search_signal_manager = SearchSignalManager.get_instance()
+        self.camera_signal_manager = bus
+        self.search_signal_manager = bus
 
         self.view = CameraWidget(parent, self.camera_config, init_view_config)
         self._setup_connections()
@@ -79,18 +75,18 @@ class CameraController(QObject):
         self.view.geometry_toggled.connect(self.toggle_geometry)
         self.view.camera_changed.connect(self._on_camera_changed)
 
-        self.theme_signal_manager.theme_changed.connect(
+        bus.theme_changed.connect(
             self.view.get_image_handler().update_theme)
-        self.camera_signal_manager.available_cameras.connect(
+        bus.cam_available_cameras.connect(
             self.view.set_available_cameras)
 
         # Puente estado global -> worker activo (búsqueda, overlays y radio de
         # esfera). Conectado una sola vez; los slots verifican que exista worker.
-        self.search_signal_manager.charuco_search_changed.connect(
+        bus.search_charuco_changed.connect(
             self._on_search_state_changed)
-        self.search_signal_manager.circle_search_changed.connect(
+        bus.search_circle_changed.connect(
             self._on_search_state_changed)
-        self.config_manager.config_updated.connect(
+        bus.cfg_config_updated.connect(
             self._on_config_updated)
 
     def _on_camera_changed(self, index):
@@ -141,7 +137,7 @@ class CameraController(QObject):
             _checked (bool): Valor emitido por la señal (no usado; se relee el estado completo).
         """
         if self.worker is not None:
-            charuco, circle = self.search_signal_manager.get_state()
+            charuco, circle = bus.search_get_state()
             self.worker.set_search_state(charuco, circle)
 
     @pyqtSlot(str, list, object)
@@ -182,18 +178,18 @@ class CameraController(QObject):
             return
 
         try:
-            self.camera_config = self.config_manager.get_param(
+            self.camera_config = bus.cfg_get_param(
                 "camera.json", default={})
             self.worker = CameraWorker(camera_index=self.camera_index,
                                        camera_config=self.camera_config,
                                        is_calibration=self.is_calibration,
-                                       search_state=self.search_signal_manager.get_state(),
+                                       search_state=bus.search_get_state(),
                                        view_state=self.draw_signal_manager.get_state())
             self.worker.sphere_ready.connect(self.on_sphere_ready)
 
             # Puente worker -> bus global (el controlador es el único que toca el bus).
             self.worker.charuco_detected.connect(
-                self.camera_signal_manager.charuco_done.emit)
+                bus.cam_charuco_done.emit)
 
             # Solo conectar feed directo si no es modo calibración
             if not self.is_calibration:
@@ -244,7 +240,7 @@ class CameraController(QObject):
             self.worker.stop()
             self.worker.deleteLater()
             self.worker = None
-            self.camera_signal_manager.clear_spheres_request.emit()
+            bus.cam_clear_spheres_request.emit()
 
         self.view.get_image_handler().set_process_running(False)
         self.view.set_ui_running_state(False)
@@ -325,5 +321,5 @@ class CameraController(QObject):
 
         # Notificar detecciones 2D al bus propio de la camara.
         # El DataController las re-publica hacia pick and place y simulación.
-        self.camera_signal_manager.spheres_detected_2d.emit(circles)
-        self.camera_signal_manager.poses_from_camera.emit(poses)
+        bus.cam_spheres_detected_2d.emit(circles)
+        bus.cam_poses_from_camera.emit(poses)

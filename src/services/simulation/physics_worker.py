@@ -6,11 +6,11 @@ periódica de la simulación, la actualización del modelo 3D en la
 interfaz y el envío de datos a las gráficas.
 
 Conexiones:
-    - Conectado a SimulationSignalManager.update_pybullet_signal
+    - Conectado a bus.sim_update_pybullet_signal
       para recibir posiciones objetivo.
     - Conectado a los ticks de GlobalTimer (update_tick, model_tick,
       sync_simulation_tick) para sincronizar la simulación.
-    - Emite posiciones a traves de SimulationSignalManager
+    - Emite posiciones a traves del bus (señales sim_)
       (model_position_signal, sensor_position_signal).
 """
 

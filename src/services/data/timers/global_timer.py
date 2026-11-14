@@ -7,7 +7,7 @@ y la sincronización con el robot físico.
 """
 
 from PyQt6.QtCore import pyqtSignal, QObject, QTimer
-from ..signals import PhysicalSignalManager
+from ..signals import bus
 
 
 class GlobalTimer(QObject):
@@ -58,7 +58,7 @@ class GlobalTimer(QObject):
         self._model_counter = 0
         GlobalTimer._initialized = True
 
-        self.signal_manager = PhysicalSignalManager.get_instance()
+        self.signal_manager = bus
 
     def _tick(self):
         """

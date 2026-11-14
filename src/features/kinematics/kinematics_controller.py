@@ -24,10 +24,7 @@ from PyQt6.QtCore import QObject, pyqtSlot, QTimer, QThread
 from PyQt6.QtWidgets import QMessageBox
 from src.features.kinematics.kinematics_widget import KinematicsWidget
 from src.features.kinematics.kinematics_worker import KinematicsWorker
-from src.services.data.signals import (
-    PhysicalSignalManager, KinematicsSignalManager,
-    SlidersSignalManager, SimulationSignalManager
-)
+from src.services.data.signals import bus
 from src.services.data.enums import Modes
 from src.services.data.utils import robotang_angulos
 from .coordinate_correction import corregir_xy, corregir_z
@@ -96,19 +93,19 @@ class KinematicsController(QObject):
         self.kinematics_widget.claw_changed.connect(
             self._on_claw_changed)
 
-        SlidersSignalManager.get_instance().change_mode_signal.connect(
+        bus.sld_change_mode_signal.connect(
             self._on_global_mode_changed)
-        SimulationSignalManager.get_instance().change_mode_signal.connect(
+        bus.sim_change_mode_signal.connect(
             self._on_global_mode_changed)
-        KinematicsSignalManager.get_instance().change_mode_signal.connect(
+        bus.kin_change_mode_signal.connect(
             self._on_global_mode_changed)
 
     def enter_kinematics_mode(self):
         if self._mode_active:
             return
 
-        phys = PhysicalSignalManager.get_instance()
-        if not phys.is_connected:
+        phys = bus
+        if not bus.phy_is_connected:
             QMessageBox.warning(
                 self.kinematics_widget,
                 "Robot no conectado",
@@ -126,10 +123,10 @@ class KinematicsController(QObject):
         # Sincronizar valor persistente
         self.kinematics_worker.set_claw_value(self._claw_mm)
         
-        KinematicsSignalManager.get_instance().change_mode_signal.emit(
+        bus.kin_change_mode_signal.emit(
             Modes.KINEMATIC)
 
-        SimulationSignalManager.get_instance().pause_simulation.emit(True)
+        bus.sim_pause_simulation.emit(True)
 
         self._set_inputs_enabled(False)
         self._robot_service.suspend_serial()
@@ -156,7 +153,7 @@ class KinematicsController(QObject):
         except:
             pass
 
-        SimulationSignalManager.get_instance().resume_simulation.emit()
+        bus.sim_resume_simulation.emit()
 
         if self._robot_service is not None:
             # Espera breve de seguridad
@@ -179,7 +176,7 @@ class KinematicsController(QObject):
             ]
         
         # 2. Enviar a la simulación
-        SimulationSignalManager.get_instance().update_robot_from_kinematics.emit(self._smoothed_pos)
+        bus.sim_update_robot_from_kinematics.emit(self._smoothed_pos)
 
 
     def execute_kinematics(self):
