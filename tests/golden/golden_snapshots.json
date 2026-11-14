@@ -1,0 +1,345 @@
+{
+  "_meta": {
+    "generated_utc": "2026-11-14T20:05:18.742626+00:00",
+    "purpose": "Behavioral contract baseline captured BEFORE the class-distribution refactor (Phase 0)."
+  },
+  "managers": {
+    "_SignalManager": {
+      "get_data_signal": [],
+      "sensor_position_signal": [
+        "QVariantList"
+      ],
+      "model_position_signal": [
+        "QVariantList",
+        "PyQt_PyObject"
+      ],
+      "update_robot_signal": [
+        "QVariantList"
+      ],
+      "update_graph_signal": [
+        "QVariantList"
+      ],
+      "update_pybullet_signal": [
+        "QVariantList"
+      ],
+      "update_target_signal": [
+        "QVariantList"
+      ],
+      "change_mode_signal": [
+        "PyQt_PyObject"
+      ]
+    },
+    "CameraSignalManager": {
+      "available_cameras": [
+        "QVariantList"
+      ],
+      "charuco_done": [
+        "int",
+        "PyQt_PyObject"
+      ],
+      "circles_done": [
+        "int",
+        "PyQt_PyObject"
+      ],
+      "pose_done": [
+        "int",
+        "PyQt_PyObject"
+      ],
+      "spheres_detected_2d": [
+        "PyQt_PyObject"
+      ],
+      "poses_from_camera": [
+        "PyQt_PyObject"
+      ],
+      "clear_spheres_request": []
+    },
+    "ConfigSignalManager": {
+      "config_updated": [
+        "QString",
+        "QVariantList",
+        "PyQt_PyObject"
+      ],
+      "change_requested": [
+        "QString",
+        "QVariantList",
+        "PyQt_PyObject"
+      ]
+    },
+    "KinematicsSignalManager": {
+      "get_data_signal": [],
+      "sensor_position_signal": [
+        "QVariantList"
+      ],
+      "model_position_signal": [
+        "QVariantList",
+        "PyQt_PyObject"
+      ],
+      "update_robot_signal": [
+        "QVariantList"
+      ],
+      "update_graph_signal": [
+        "QVariantList"
+      ],
+      "update_pybullet_signal": [
+        "QVariantList"
+      ],
+      "update_target_signal": [
+        "QVariantList"
+      ],
+      "change_mode_signal": [
+        "PyQt_PyObject"
+      ],
+      "inverse_kinematics_requested": [
+        "PyQt_PyObject"
+      ],
+      "inverse_kinematics_ready": [
+        "PyQt_PyObject"
+      ]
+    },
+    "PhysicalSignalManager": {
+      "get_data_signal": [],
+      "sensor_position_signal": [
+        "QVariantList"
+      ],
+      "model_position_signal": [
+        "QVariantList",
+        "PyQt_PyObject"
+      ],
+      "update_robot_signal": [
+        "QVariantList"
+      ],
+      "update_graph_signal": [
+        "QVariantList"
+      ],
+      "update_pybullet_signal": [
+        "QVariantList"
+      ],
+      "update_target_signal": [
+        "QVariantList"
+      ],
+      "change_mode_signal": [
+        "PyQt_PyObject"
+      ],
+      "send_to_robot": [
+        "QVariantList"
+      ],
+      "data_received": [
+        "QVariantList",
+        "QVariantList"
+      ],
+      "start_service": [],
+      "stop_service": [],
+      "pause_service": [],
+      "resume_service": [],
+      "start_request": [],
+      "stop_request": []
+    },
+    "PickPlaceSignalManager": {
+      "poses_from_camera": [
+        "PyQt_PyObject"
+      ],
+      "spheres_detected_2d": [
+        "PyQt_PyObject"
+      ],
+      "sphere_selected": [
+        "QString"
+      ],
+      "place_requested": [
+        "PyQt_PyObject"
+      ],
+      "pick_requested": [
+        "QString"
+      ],
+      "inverse_kinematics_requested": [
+        "PyQt_PyObject"
+      ],
+      "inverse_kinematics_ready": [
+        "PyQt_PyObject"
+      ],
+      "target_reached": [
+        "QVariantList"
+      ],
+      "state_changed": [
+        "bool"
+      ],
+      "change_mode_signal": [
+        "PyQt_PyObject"
+      ],
+      "pick_place_running_changed": [
+        "bool"
+      ],
+      "release_sphere_request": [
+        "QString"
+      ],
+      "reattach_sphere_request": [
+        "QString"
+      ],
+      "clear_spheres_request": [],
+      "search_circle_request": [
+        "bool"
+      ]
+    },
+    "SearchSignalManager": {
+      "charuco_search_changed": [
+        "bool"
+      ],
+      "circle_search_changed": [
+        "bool"
+      ]
+    },
+    "SimulationSignalManager": {
+      "get_data_signal": [],
+      "sensor_position_signal": [
+        "QVariantList"
+      ],
+      "model_position_signal": [
+        "QVariantList",
+        "PyQt_PyObject"
+      ],
+      "update_robot_signal": [
+        "QVariantList"
+      ],
+      "update_graph_signal": [
+        "QVariantList"
+      ],
+      "update_pybullet_signal": [
+        "QVariantList"
+      ],
+      "update_target_signal": [
+        "QVariantList"
+      ],
+      "change_mode_signal": [
+        "PyQt_PyObject"
+      ],
+      "sphere_pos_from_camera": [
+        "PyQt_PyObject"
+      ],
+      "sphere_pos_from_pybullet": [
+        "PyQt_PyObject"
+      ],
+      "clear_spheres": [],
+      "release_sphere": [
+        "QString"
+      ],
+      "reattach_sphere": [
+        "QString"
+      ],
+      "sphere_radius_changed": [
+        "double"
+      ],
+      "start_simulation": [],
+      "pause_simulation": [
+        "bool"
+      ],
+      "resume_simulation": [],
+      "stop_simulation": [],
+      "update_robot_from_kinematics": [
+        "QVariantList"
+      ],
+      "update_robot_from_sliders": [
+        "QVariantList"
+      ],
+      "update_robot_from_simulation": [
+        "QVariantList"
+      ],
+      "start_request": [],
+      "pause_request": [
+        "bool"
+      ],
+      "stop_request": []
+    },
+    "SlidersSignalManager": {
+      "get_data_signal": [],
+      "sensor_position_signal": [
+        "QVariantList"
+      ],
+      "model_position_signal": [
+        "QVariantList",
+        "PyQt_PyObject"
+      ],
+      "update_robot_signal": [
+        "QVariantList"
+      ],
+      "update_graph_signal": [
+        "QVariantList"
+      ],
+      "update_pybullet_signal": [
+        "QVariantList"
+      ],
+      "update_target_signal": [
+        "QVariantList"
+      ],
+      "change_mode_signal": [
+        "PyQt_PyObject"
+      ]
+    },
+    "ThemeSignalManager": {
+      "theme_changed": [
+        "bool"
+      ]
+    }
+  },
+  "enums": {
+    "Modes": {
+      "SLIDERS": 1,
+      "KINEMATIC": 2,
+      "PICK_PLACE": 3
+    },
+    "Units": {
+      "DEG": 1,
+      "RAD": 2
+    },
+    "Domains": {
+      "SIMULATION": 1,
+      "PHYSICAL": 2
+    },
+    "NotificationType": {
+      "TOAST_INFO": 1,
+      "TOAST_SUCCESS": 2,
+      "TOAST_WARNING": 3,
+      "TOAST_ERROR": 4,
+      "DIALOG_INFO": 5,
+      "DIALOG_WARNING": 6,
+      "DIALOG_ERROR": 7,
+      "DIALOG_QUESTION": 8
+    },
+    "PickPlaceState": {
+      "IDLE": "idle",
+      "HOME1_MOVE": "home1_move",
+      "HOME1_VALIDATE": "home1_validate",
+      "WAITING_FOR_INPUT": "waiting_for_input",
+      "HOME2_MOVE": "home2_move",
+      "HOME2_VALIDATE": "home2_validate",
+      "PID_HOME": "pid_home",
+      "PICK_APPROACH": "pick_approach",
+      "PICK_DOWN": "pick_down",
+      "PICK_GRASP": "pick_grasp",
+      "RETRACT_TO_PID_HOME": "retract_to_pid_home",
+      "RETRACT_LIFT": "retract_lift",
+      "RETRACT_TO_HOME1_PICK": "retract_to_home1_pick",
+      "PID_HOME_PLACE": "pid_home_place",
+      "PLACE_APPROACH": "place_approach",
+      "PLACE_DOWN": "place_down",
+      "PLACE_RELEASE": "place_release",
+      "RETRACT_TO_PLACE_ABOVE": "retract_to_place_above",
+      "RETRACT_FROM_PLACE": "retract_from_place",
+      "FINAL_SEQ_HOME": "final_seq_home",
+      "FINAL_SEQ_HOME2": "final_seq_home2",
+      "FINAL_SEQ_HOME1": "final_seq_home1",
+      "HOMING": "homing",
+      "OPENING_GRIPPER": "opening_gripper",
+      "COMPUTING_IK": "computing_ik",
+      "COMPUTING_IK_ABOVE": "computing_ik_above",
+      "APPROACHING_ABOVE": "approaching_above",
+      "APPROACHING": "approaching",
+      "GRASPING": "grasping",
+      "LIFTING": "lifting",
+      "COMPUTING_IK_PLACE": "computing_ik_place",
+      "COMPUTING_IK_PLACE_ABOVE": "computing_ik_place_above",
+      "APPROACHING_PLACE_ABOVE": "approaching_place_above",
+      "APPROACHING_PLACE": "approaching_place",
+      "RELEASING": "releasing",
+      "RETURNING_HOME": "returning_home"
+    }
+  }
+}
