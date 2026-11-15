@@ -4,7 +4,7 @@ from PyQt6.QtCore import QObject, QEvent, Qt
 from PyQt6.QtWidgets import QApplication, QToolTip
 
 
-class WidgetInspector(QObject):
+class _WidgetInspectorFilter(QObject):
     """Event filter that reports widget sizes on Ctrl+click."""
 
     def eventFilter(self, obj, event):
@@ -31,8 +31,12 @@ class WidgetInspector(QObject):
             return True
         return super().eventFilter(obj, event)
 
-    @staticmethod
-    def install(app: QApplication):
-        """Call once after QApplication is created."""
-        inspector = WidgetInspector(app)
-        app.installEventFilter(inspector)
+
+def install_widget_inspector(app: QApplication) -> None:
+    """Instala el inspector de tamaños de widgets en la aplicación.
+
+    Llamar una sola vez tras crear el QApplication. A partir de ese
+    momento, Ctrl+click sobre cualquier widget imprime su información
+    de tamaños y muestra un tooltip.
+    """
+    app.installEventFilter(_WidgetInspectorFilter(app))

@@ -59,6 +59,7 @@ import cv2
 import darkdetect
 import pybullet as p
 import pybullet_data
+from dataclasses import dataclass
 from PyQt6.QtCore import QUrl, Qt, QDir, QTimer
 from PyQt6.QtGui import QGuiApplication, QPixmap, QFont, QIcon, QSurfaceFormat
 from PyQt6.QtWidgets import QApplication, QWidget
@@ -69,6 +70,7 @@ from src.services.ui.notification_manager import NotificationManager
 from src.services.data.enums.types import NotificationType
 
 
+@dataclass
 class PreloadedContainer:
     """
     Contenedor que encapsula la vista Quick3D precargada y su contenedor de ventana.
@@ -79,10 +81,9 @@ class PreloadedContainer:
         is_ready (bool): Indica si la precarga se completó exitosamente.
     """
 
-    def __init__(self, quick_view, window_container):
-        self.quick_view = quick_view
-        self.window_container = window_container
-        self.is_ready = True
+    quick_view: QQuickView
+    window_container: QWidget | None
+    is_ready: bool = True
 
 
 class CompletePreloader:
@@ -357,8 +358,8 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     app.setStyle('fusion')
-    from src.services.data.utils.widget_inspector import WidgetInspector
-    WidgetInspector.install(app)
+    from src.services.data.utils.widget_inspector import install_widget_inspector
+    install_widget_inspector(app)
     src_path = resource_base()
 
     QDir.addSearchPath(

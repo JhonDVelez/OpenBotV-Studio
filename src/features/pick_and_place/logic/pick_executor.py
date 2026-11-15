@@ -3,15 +3,24 @@ Módulo que implementa la lógica de la secuencia de captura (Pick).
 """
 
 import math
-from src.features.pick_and_place.logic.base_executor import BaseExecutor
+from src.features.pick_and_place.logic.servo_helpers import (
+    relative_to_servo, with_gripper)
 from src.services.data.signals import bus
 
-class PickExecutor(BaseExecutor):
-    """Ejecutor especializado en la fase de Pick."""
+class PickExecutor:
+    """Ejecutor especializado en la fase de Pick.
+
+    Recibe el worker (para emitir acciones) y el contexto de datos
+    compartido sin heredar de una clase base.
+    """
+
+    def __init__(self, worker, context):
+        self.worker = worker
+        self.context = context
 
     def enter_homing(self):
         """        Envía el brazo a posición neutral."""
-        target = self._relative_to_servo([0, 0, 0, 0, 90, 0])
+        target = relative_to_servo([0, 0, 0, 0, 90, 0])
         self.context.current_target = target
         self.worker._start_stall_timer()
         self.worker.action_request.emit({
@@ -65,7 +74,7 @@ class PickExecutor(BaseExecutor):
             fb = self.context.current_feedback
             target = fb.tolist() if hasattr(fb, 'tolist') else list(fb)
 
-        target = self._with_gripper(target, self.context.gripper_open)
+        target = with_gripper(target, self.context.gripper_open)
         self.context.current_target = target
         self.worker._start_stall_timer()
         self.worker.action_request.emit({
@@ -115,7 +124,7 @@ class PickExecutor(BaseExecutor):
         if self.context.ik_target is None:
             self.worker._fail('No hay objetivo IK para cerrar pinza')
             return
-        target = self._with_gripper(self.context.ik_target, self.context.gripper_max_closed)
+        target = with_gripper(self.context.ik_target, self.context.gripper_max_closed)
         self.context.current_target = target
         self.worker._start_stall_timer()
         self.worker.action_request.emit({
@@ -126,7 +135,7 @@ class PickExecutor(BaseExecutor):
 
     def enter_lifting(self):
         """Levanta la esfera."""
-        target = self._relative_to_servo([0, 0, 0, 0, 90, self.context.gripper_closed])
+        target = relative_to_servo([0, 0, 0, 0, 90, self.context.gripper_closed])
         self.context.current_target = target
         self.worker._start_stall_timer()
         self.worker.action_request.emit({

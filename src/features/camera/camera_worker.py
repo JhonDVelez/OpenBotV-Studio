@@ -18,8 +18,12 @@ from threading import Lock
 import time
 import numpy as np
 import cv2
-from PyQt6.QtCore import QThread, pyqtSignal, QThreadPool, pyqtSlot
-from src.services.vision import ChArUcoDetection, CircleDetection, CameraConnection, PoseEstimation, DetectionDrawer
+from functools import partial
+
+from PyQt6.QtCore import QThread, pyqtSignal, QThreadPool, pyqtSlot, QRunnable
+from src.services.vision import (
+    ChArUcoDetection, CameraConnection, PoseEstimation, DetectionDrawer)
+from src.services.vision.circle_detection import run_circle_detection
 from src.services.data.timers import FrameCounter
 
 
@@ -125,9 +129,11 @@ class CameraWorker(QThread):
                                 frame_umat, self.frame_id, self.camera_matrix, self.dist_coeff,
                                 self.on_charuco_done, self._emit_error))
                         if circle_state:
-                            self.thread_pool.start(CircleDetection(
-                                frame_umat, self.frame_id, self.last_roi, self.hsv_colors,
-                                self.on_circles_done, self._emit_error))
+                            self.thread_pool.start(QRunnable.create(partial(
+                                run_circle_detection,
+                                frame_umat, self.frame_id, self.last_roi,
+                                self.hsv_colors,
+                                self.on_circles_done, self._emit_error)))
                     self._process_frame = False
 
                 view = self.draw_view_state()

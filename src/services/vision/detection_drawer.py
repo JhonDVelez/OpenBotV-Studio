@@ -7,7 +7,7 @@ de mostrarlo en la interfaz.
 
 Conexiones:
     - Ejecutado por un QThreadPool.
-    - Recibe resultados de ChArUcoDetection y CircleDetection.
+    - Recibe resultados de ChArUcoDetection y run_circle_detection.
     - Entrega el frame final a traves de `frame_callback`.
 """
 

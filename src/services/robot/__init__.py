@@ -1,9 +1,10 @@
 """
 Paquete de servicios de comunicación y control del robot.
 
-Proporciona las clases RobotController (interfaz principal),
-RobotWorker (comunicación serial) y RobotCompensator
-(procesamiento de datos de salida).
+Proporciona la clase RobotController (interfaz principal) y
+RobotWorker (comunicación serial). Las utilidades de limitación
+física viven en robot_limits.py y las conversiones angulo-servo en
+src.services.data.utils.conversions.
 
 Señales:
     - RobotWorker.data_received: Emitida al recibir telemetría válida

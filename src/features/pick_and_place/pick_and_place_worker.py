@@ -14,9 +14,9 @@ from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, QTimer
 from src.features.pick_and_place.pick_place_states import PickPlaceState
 from src.features.pick_and_place.pick_place_state_machine import PickPlaceStateMachine
 from src.features.pick_and_place.logic.context import PickPlaceContext
-from src.services.robot.robot_compensator import CartesianPidCompensator
 from src.services.robot.serial_manager import SerialPortManager
-from src.services.data.utils.conversions import robotang_angulos
+from src.services.data.utils.conversions import angulos_robotang, robotang_angulos
+from src.services.robot.robot_limits import apply_physical_limits
 
 
 class PickAndPlaceWorker(QThread):
@@ -368,7 +368,7 @@ class PickAndPlaceWorker(QThread):
 
             raw_pos = self._read_positions()
             q_reales_deg = np.array(
-                CartesianPidCompensator.robotang_angulos(
+                robotang_angulos(
                     *raw_pos))
             q_actual_rad = np.radians([
                 q_reales_deg[0], q_reales_deg[1],
@@ -441,7 +441,7 @@ class PickAndPlaceWorker(QThread):
                     dq_deg[j] += np.sign(dq_deg[j]) * umbral_motor
             dq = np.radians(dq_deg)
 
-            q_next_rad = CartesianPidCompensator.apply_physical_limits(
+            q_next_rad = apply_physical_limits(
                 q_actual_rad + dq, limites_deg)
             q_next_rad[0] = math.atan2(target[1], target[0])
             q_out_deg = np.degrees(q_next_rad)
@@ -450,7 +450,7 @@ class PickAndPlaceWorker(QThread):
                        0, q_out_deg[3], actual_angulo_garra]
             self.joint_update.emit(q_final)
             self._last_commanded_angles = q_final # Actualizar caché
-            servo_positions = CartesianPidCompensator.angulos_robotang(
+            servo_positions = angulos_robotang(
                 *q_final)
 
             #print(f"[DEBUG] PID Iter {i}: Target {target}, Actual {p_actual}, Error {error_actual}, Servo Pos {servo_positions}")
@@ -497,7 +497,7 @@ class PickAndPlaceWorker(QThread):
                                     target_angles_deg[2], target_angles_deg[4]])
             target_xyz = self._cinematica_directa(target_rad, self._links)
             
-            pos_actual_deg = CartesianPidCompensator.robotang_angulos(*self._read_positions())
+            pos_actual_deg = robotang_angulos(*self._read_positions())
             pos_actual_rad = np.radians([pos_actual_deg[0], pos_actual_deg[1], 
                                         pos_actual_deg[2], pos_actual_deg[4]])
             pos_actual_xyz = self._cinematica_directa(pos_actual_rad, self._links)
@@ -529,7 +529,7 @@ class PickAndPlaceWorker(QThread):
                 if any(p is None for p in raw_pos):
                     continue
                 q_reales_deg = np.array(
-                    CartesianPidCompensator.robotang_angulos(
+                    robotang_angulos(
                         *raw_pos))
                 
                 if self._last_commanded_angles is None:
@@ -549,7 +549,7 @@ class PickAndPlaceWorker(QThread):
                 self._pid_control_loop(target, limites, max_iter=max_iter, tolerancias=tol, t_start=t_start, angulo_garra=angulo_garra)
             elif work[0] == 'direct_move':
                 _, positions = work
-                servo_positions = CartesianPidCompensator.angulos_robotang(*positions)
+                servo_positions = angulos_robotang(*positions)
                 self._enviar_robot(servo_positions)
                 #self.direct_joint_update.emit(positions)
                 self._update_graph_with_angles(positions)

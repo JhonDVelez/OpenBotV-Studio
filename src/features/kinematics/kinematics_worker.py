@@ -24,8 +24,9 @@ import threading
 import serial
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.services.robot.robot_compensator import CartesianPidCompensator
 from src.services.robot.serial_manager import SerialPortManager
+from src.services.data.utils.conversions import angulos_robotang, robotang_angulos
+from src.services.robot.robot_limits import apply_physical_limits
 
 
 class KinematicsWorker(QThread):
@@ -345,7 +346,7 @@ class KinematicsWorker(QThread):
 
             raw_pos = self._read_positions()
             q_reales_deg = np.array(
-                CartesianPidCompensator.robotang_angulos(
+                robotang_angulos(
                     *raw_pos))
             q_actual_rad = np.radians([
                 q_reales_deg[0], q_reales_deg[1],
@@ -419,7 +420,7 @@ class KinematicsWorker(QThread):
                     dq_deg[j] += np.sign(dq_deg[j]) * umbral_motor
             dq = np.radians(dq_deg)
 
-            q_next_rad = CartesianPidCompensator.apply_physical_limits(
+            q_next_rad = apply_physical_limits(
                 q_actual_rad + dq, limites_deg)
             q_next_rad[0] = math.atan2(target[1], target[0])
             q_out_deg = np.degrees(q_next_rad)
@@ -428,7 +429,7 @@ class KinematicsWorker(QThread):
                        0, q_out_deg[3], actual_angulo_garra]
             self.joint_update.emit(q_final)
             self._last_commanded_angles = q_final # Actualizar caché
-            servo_positions = CartesianPidCompensator.angulos_robotang(
+            servo_positions = angulos_robotang(
                 *q_final)
 
 
@@ -599,7 +600,7 @@ class KinematicsWorker(QThread):
             target_xyz = self._cinematica_directa(target_rad, self._links)
             
             # Posición actual
-            pos_actual_deg = CartesianPidCompensator.robotang_angulos(*self._read_positions())
+            pos_actual_deg = robotang_angulos(*self._read_positions())
             pos_actual_rad = np.radians([pos_actual_deg[0], pos_actual_deg[1], 
                                         pos_actual_deg[2], pos_actual_deg[4]])
             pos_actual_xyz = self._cinematica_directa(pos_actual_rad, self._links)
@@ -643,11 +644,11 @@ class KinematicsWorker(QThread):
             ser = SerialPortManager.get_instance().get_serial()
             print(f"[DEBUG] _serial: {ser}, is_open: {ser.is_open if ser else 'N/A'}")
             
-            servo_positions = CartesianPidCompensator.angulos_robotang(*home_pos)
+            servo_positions = angulos_robotang(*home_pos)
             self._enviar_robot(servo_positions)
             rad_home_pos = np.radians([home_pos[0], home_pos[1], home_pos[2], home_pos[4]])
             target_home_xyz = self._cinematica_directa(rad_home_pos, self._links)
-            pos_actual = CartesianPidCompensator.robotang_angulos(*self._read_positions())
+            pos_actual = robotang_angulos(*self._read_positions())
             rad_actual = np.radians([pos_actual[0], pos_actual[1], pos_actual[2], pos_actual[4]])
             pos_actual_xyz = self._cinematica_directa(rad_actual, self._links)
             self.actualizar_grafica(target_home_xyz.tolist(), pos_actual_xyz.tolist())
@@ -666,7 +667,7 @@ class KinematicsWorker(QThread):
                 # Actualización de garra fuera de PID
                 raw_pos = self._read_positions()
                 q_reales_deg = np.array(
-                    CartesianPidCompensator.robotang_angulos(
+                    robotang_angulos(
                         *raw_pos))
                 
                 # Inicializar caché si es None (primera vez que entra al bucle)
@@ -691,7 +692,7 @@ class KinematicsWorker(QThread):
                         
                     # Enviar físicamente al robot si cambió significativamente
                     if gripper_moving:
-                        servo_positions = CartesianPidCompensator.angulos_robotang(*self._last_commanded_angles)
+                        servo_positions = angulos_robotang(*self._last_commanded_angles)
                         self._enviar_robot(servo_positions)
                         self._update_graph_with_angles(self._last_commanded_angles)
                         self._last_sent_claw_angle = angulo_garra_calculado
@@ -715,7 +716,7 @@ class KinematicsWorker(QThread):
                 print(f"[DEBUG] Ejecutando movimiento directo a {work[1]}")
                 _, positions = work
                 # Emitir ángulos para la simulación antes de convertir a PWM
-                servo_positions = CartesianPidCompensator.angulos_robotang(*positions)
+                servo_positions = angulos_robotang(*positions)
                 self._enviar_robot(servo_positions)
                 self.joint_update.emit(positions)
                 self._update_graph_with_angles(positions)
@@ -725,7 +726,7 @@ class KinematicsWorker(QThread):
                 home_pos = [0, -45, 120, 0, 30, 0]
                 # Emitir ángulos para la simulación antes de convertir a PWM
                 self.joint_update.emit(home_pos)
-                home_servos = CartesianPidCompensator.angulos_robotang(*home_pos)
+                home_servos = angulos_robotang(*home_pos)
                 self._enviar_robot(home_servos)
                 self._update_graph_with_angles(home_pos)
                 self._last_commanded_angles = home_pos

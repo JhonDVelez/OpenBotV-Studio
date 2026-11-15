@@ -3,11 +3,20 @@ Módulo que implementa la lógica de la secuencia de colocación (Place).
 """
 
 import math
-from src.features.pick_and_place.logic.base_executor import BaseExecutor
+from src.features.pick_and_place.logic.servo_helpers import (
+    relative_to_servo, with_gripper)
 from src.services.data.signals import bus
 
-class PlaceExecutor(BaseExecutor):
-    """Ejecutor especializado en la fase de Place."""
+class PlaceExecutor:
+    """Ejecutor especializado en la fase de Place.
+
+    Recibe el worker (para emitir acciones) y el contexto de datos
+    compartido sin heredar de una clase base.
+    """
+
+    def __init__(self, worker, context):
+        self.worker = worker
+        self.context = context
 
     def enter_computing_ik_place_above(self):
         """        Solicita IK para posición elevada sobre el destino."""
@@ -88,7 +97,7 @@ class PlaceExecutor(BaseExecutor):
         if self.context.ik_target is None:
             self.worker._fail('No hay objetivo IK para soltar')
             return
-        target = self._with_gripper(self.context.ik_target, self.context.gripper_open)
+        target = with_gripper(self.context.ik_target, self.context.gripper_open)
         self.context.current_target = target
         self.worker._start_stall_timer()
         self.worker.action_request.emit({
@@ -99,7 +108,7 @@ class PlaceExecutor(BaseExecutor):
 
     def enter_returning_home(self):
         """        Regresa a posición neutral."""
-        target = self._relative_to_servo([0, 0, 0, 0, 90, 0])
+        target = relative_to_servo([0, 0, 0, 0, 90, 0])
         self.context.current_target = target
         self.worker._start_stall_timer()
         self.worker.action_request.emit({
