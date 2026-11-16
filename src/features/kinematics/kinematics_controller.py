@@ -7,26 +7,31 @@ en el codigo standalone Prueba_controlv11.
 
 Flujo:
     1. Al activar modo cinematica:
-       - Verificar conexion del robot.
-       - Suspender serial del RobotWorker.
-       - Enviar HOME directo (sin PID) y esperar 2.5s.
+       - Con robot: suspender serial del RobotWorker, HOME directo
+         (sin PID) y esperar llegada (2.5s aprox).
+       - Sin robot: iniciar el gemelo si estaba parado y enviar HOME
+         virtual directo al gemelo (sin PID).
+       - Sincronizar las casillas de plantas PID del panel.
        - Habilitar entrada de coordenadas del usuario.
     2. Al recibir coordenadas ("Enviar"):
+       - Pasa al worker las casillas PID activas.
        - PID al HOME con compensaciones.
        - PID al TARGET con compensaciones.
     3. Al salir del modo cinematica:
        - Detener el worker.
-       - Reanudar serial del RobotWorker.
+       - Reanudar serial del RobotWorker (si se suspendió).
+
+El modelo 3D (QML) sigue siempre la pose real del gemelo vía PyBullet;
+este controlador ya no interpola ni emite posiciones articulares.
 """
 
-import numpy as np
-from PyQt6.QtCore import QObject, pyqtSlot, QTimer, QThread
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtCore import QObject, pyqtSlot, QThread
 from src.features.kinematics.kinematics_widget import KinematicsWidget
 from src.features.kinematics.kinematics_worker import KinematicsWorker
 from src.services.data.signals import bus
 from src.services.data.enums import Modes
-from src.services.data.utils import robotang_angulos
+from src.services.ui.notification_manager import notification_manager
+from src.services.data.enums.types import NotificationType
 from .coordinate_correction import corregir_xy, corregir_z
 
 
@@ -35,8 +40,8 @@ class KinematicsController(QObject):
     Controlador para el modo cinematico del brazo robotico.
 
     Orquesta el lifecycle completo:
-    - Entrada al modo (HOME directo + habilitar UI)
-    - Ejecucion de movimientos (PID HOME + PID TARGET)
+    - Entrada al modo (HOME directo/virtual + habilitar UI)
+    - Ejecucion de movimientos (PID HOME + PID TARGET, por planta)
     - Salida del modo (detener worker + reanudar RobotWorker)
     """
 
@@ -44,13 +49,11 @@ class KinematicsController(QObject):
         super().__init__()
         self.kinematics_widget = KinematicsWidget(parent)
         self.kinematics_worker = None
-        self._claw_mm = 30 # Valor inicial persistente
+        self._claw_mm = 30  # Valor inicial persistente
         self._robot_service = None
         self._graph_controller = None
         self._mode_active = False
-        self._last_emitted_angulos = None
-        self._last_processed_pos = None
-        self._smoothed_pos = None
+        self._serial_suspendido = False
 
         self._create_worker()
         self.__setup_connections()
@@ -58,10 +61,12 @@ class KinematicsController(QObject):
     def _create_worker(self):
         if hasattr(self, 'kinematics_worker') and self.kinematics_worker:
             try:
-                self.kinematics_worker.status_changed.disconnect(self._on_status_changed)
-                self.kinematics_worker.movement_finished.disconnect(self._on_movement_finished)
-                self.kinematics_worker.input_enabled.disconnect(self._on_input_enabled)
-                self.kinematics_worker.joint_update.disconnect(self._on_joint_update)
+                self.kinematics_worker.status_changed.disconnect(
+                    self._on_status_changed)
+                self.kinematics_worker.movement_finished.disconnect(
+                    self._on_movement_finished)
+                self.kinematics_worker.input_enabled.disconnect(
+                    self._on_input_enabled)
             except Exception:
                 pass
             self.kinematics_worker.force_abort()
@@ -73,8 +78,6 @@ class KinematicsController(QObject):
             self._on_movement_finished)
         self.kinematics_worker.input_enabled.connect(
             self._on_input_enabled)
-        self.kinematics_worker.joint_update.connect(
-            self._on_joint_update)
 
         if self._graph_controller:
             self._graph_controller.set_kinematics_worker(self.kinematics_worker)
@@ -100,39 +103,55 @@ class KinematicsController(QObject):
         bus.kin_change_mode_signal.connect(
             self._on_global_mode_changed)
 
+    def _hay_robot(self):
+        """True si hay robot físico conectado con servicio disponible."""
+        return bus.phy_is_connected and self._robot_service is not None
+
+    def _asegurar_simulacion(self):
+        """Garantiza que el gemelo esté corriendo para el modo virtual.
+
+        El arranque real lo gestiona el SimulationController vía el bus;
+        se marca el estado de inmediato para que el worker pueda enviar
+        comandos al gemelo sin esperar al siguiente ciclo del hilo de UI
+        (PyBullet los aplica en cuanto arranca la simulación).
+        """
+        if not bus.sim_is_running():
+            bus.sim_set_running(True)
+            bus.sim_start_request.emit()
+
     def enter_kinematics_mode(self):
         if self._mode_active:
             return
 
-        phys = bus
-        if not bus.phy_is_connected:
-            QMessageBox.warning(
-                self.kinematics_widget,
-                "Robot no conectado",
-                "Para usar el modo Cinematica debe conectar el robot "
-                "previamente desde el menu Robot > Puerto."
-            )
-            return
-
-        if self._robot_service is None:
-            return
-
+        robot_conectado = self._hay_robot()
         self._mode_active = True
-        self._create_worker() # Instanciar worker fresco cada vez que se entra al modo
-        
-        # Sincronizar valor persistente
-        self.kinematics_worker.set_claw_value(self._claw_mm)
-        
-        bus.kin_change_mode_signal.emit(
-            Modes.KINEMATIC)
+        # Instanciar worker fresco cada vez que se entra al modo
+        self._create_worker()
 
-        bus.sim_pause_simulation.emit(True)
+        # Sincronizar valor persistente y casillas de plantas PID
+        self.kinematics_widget.sync_pid_targets(robot_conectado)
+        targets = self.kinematics_widget.get_pid_targets()
+        self.kinematics_worker.set_claw_value(self._claw_mm)
+        self.kinematics_worker.set_pid_targets(
+            targets["robot"], targets["sim"])
+
+        bus.kin_change_mode_signal.emit(Modes.KINEMATIC)
 
         self._set_inputs_enabled(False)
-        self._robot_service.suspend_serial()
 
-        com = self._robot_service.get_com()
-        self.kinematics_worker.send_home_direct(com)
+        if robot_conectado:
+            self._serial_suspendido = True
+            self._robot_service.suspend_serial()
+            com = self._robot_service.get_com()
+            self.kinematics_worker.send_home_direct(com)
+        else:
+            self._serial_suspendido = False
+            self._asegurar_simulacion()
+            notification_manager.notify(
+                "Modo cinemática virtual: sin robot, se mueve solo el "
+                "gemelo de PyBullet", NotificationType.TOAST_INFO)
+            self.kinematics_worker.start_virtual()
+            self.kinematics_worker.send_home_virtual()
 
     def exit_kinematics_mode(self):
 
@@ -142,42 +161,26 @@ class KinematicsController(QObject):
         self._mode_active = False
         # Usar release_and_cleanup para cerrar y notificar
         if hasattr(self, 'kinematics_worker') and self.kinematics_worker:
-            self.kinematics_worker.port_released.connect(self._on_kinematics_port_released)
+            self.kinematics_worker.port_released.connect(
+                self._on_kinematics_port_released)
             self.kinematics_worker.force_abort()
             self.kinematics_worker.release_and_cleanup()
 
     @pyqtSlot()
     def _on_kinematics_port_released(self):
         try:
-            self.kinematics_worker.port_released.disconnect(self._on_kinematics_port_released)
-        except:
+            self.kinematics_worker.port_released.disconnect(
+                self._on_kinematics_port_released)
+        except Exception:
             pass
 
-        bus.sim_resume_simulation.emit()
-
-        if self._robot_service is not None:
+        if self._serial_suspendido and self._robot_service is not None:
             # Espera breve de seguridad
             QThread.msleep(200)
             self._robot_service.resume_serial()
+        self._serial_suspendido = False
 
         self._set_inputs_enabled(False)
-    def _update_simulation_with_positions(self, positions):
-        """Procesa y emite posiciones suavizadas a la simulación."""
-        positions[4]= positions[4]*-1
-        positions[5]= positions[5]*-1 
-        #1. Aplicar filtro EMA
-        alpha = 0.1
-        if self._smoothed_pos is None:
-            self._smoothed_pos = positions
-        else:
-            self._smoothed_pos = [
-                (alpha * new) + ((1 - alpha) * old)
-                for new, old in zip(positions, self._smoothed_pos)
-            ]
-        
-        # 2. Enviar a la simulación
-        bus.sim_update_robot_from_kinematics.emit(self._smoothed_pos)
-
 
     def execute_kinematics(self):
 
@@ -189,8 +192,11 @@ class KinematicsController(QObject):
 
         coords = self.kinematics_widget.get_coordinates()
         gains = self.kinematics_widget.get_pid_gains()
+        targets = self.kinematics_widget.get_pid_targets()
         self.kinematics_worker.set_pid_gains(
             gains["kp"], gains["ki"], gains["kd"])
+        self.kinematics_worker.set_pid_targets(
+            targets["robot"], targets["sim"])
 
         tx_raw = coords['x']
         ty_raw = coords['y']
@@ -204,10 +210,10 @@ class KinematicsController(QObject):
 
         self._set_inputs_enabled(False)
         self.kinematics_widget.set_control_state("running")
-        
+
         # Asegurar que el worker no esté pausado antes de enviar la tarea
         self.kinematics_worker.resume()
-        
+
         self.kinematics_worker.execute_target(tx, ty, tz)
 
     @pyqtSlot(int)
@@ -232,11 +238,6 @@ class KinematicsController(QObject):
             self._set_inputs_enabled(True)
             self.kinematics_widget.set_control_state("idle")
 
-    @pyqtSlot(list)
-    def _on_joint_update(self, joints):
-        # Usar la lógica centralizada para procesar y enviar las posiciones del worker
-        self._update_simulation_with_positions(joints)
-
     @pyqtSlot(object)
     def _on_global_mode_changed(self, mode):
         if mode != Modes.KINEMATIC and self._mode_active:
@@ -246,19 +247,19 @@ class KinematicsController(QObject):
         # 1. Bloquear inputs inmediatamente
         self._set_inputs_enabled(False)
         self.kinematics_widget.set_control_state("homing")
-        
+
         # Resetear valor de garra
         self._claw_mm = 30
         self.kinematics_widget.reset_claw_value()
-        
+
         # 2. Resetear el worker (abortar PID y limpiar cola)
         self.kinematics_worker.reset_state()
         self.kinematics_worker.resume()
-        
+
         # 3. Resetear gráfica
         if self._graph_controller:
             self._graph_controller.reset_cartesian_plot()
-            
+
         # 4. Enviar HOME (la señal input_enabled del worker re-habilitará la UI)
         self.kinematics_worker.send_home()
 

@@ -12,7 +12,8 @@ Conexiones:
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QSpinBox, QDoubleSpinBox, QPushButton, QSizePolicy, QSlider
+    QLabel, QSpinBox, QDoubleSpinBox, QPushButton, QSizePolicy, QSlider,
+    QCheckBox
 )
 from PyQt6.QtCore import QSize, pyqtSignal, Qt
 
@@ -108,6 +109,19 @@ class KinematicsWidget(QWidget):
 
         self.main_layout.addWidget(self.holder_widget)
 
+        # --- Casillas de plantas con lazo PID ---
+        # Cada planta corre su propio lazo: robot (telemetría del MCU) y
+        # gemelo virtual (pose de PyBullet). Sin casillas, el movimiento
+        # se envía por cinemática inversa directa.
+        self._targets_container = QWidget(self)
+        targets_layout = QHBoxLayout(self._targets_container)
+        targets_layout.setContentsMargins(0, 0, 0, 0)
+        self.chk_pid_robot = QCheckBox("Aplicar PID al robot")
+        self.chk_pid_sim = QCheckBox("Aplicar PID al gemelo virtual")
+        targets_layout.addWidget(self.chk_pid_robot)
+        targets_layout.addWidget(self.chk_pid_sim)
+        self.main_layout.addWidget(self._targets_container)
+
         # --- Sección de Ganancias PID ---
         self._pid_container = QWidget(self)
         pid_grid = QGridLayout(self._pid_container)
@@ -193,13 +207,51 @@ class KinematicsWidget(QWidget):
             for gain in self._pid_spins
         }
 
+    def get_pid_targets(self):
+        """Obtiene las casillas de plantas con lazo PID activo.
+
+        Returns:
+            dict: {"robot": bool, "sim": bool}
+        """
+        return {"robot": self.chk_pid_robot.isChecked(),
+                "sim": self.chk_pid_sim.isChecked()}
+
+    def set_pid_targets(self, robot=None, sim=None):
+        """Fija las casillas de lazo PID por planta.
+
+        Args:
+            robot (bool): None no modifica; True/False fija la casilla
+                del robot.
+            sim (bool): None no modifica; True/False fija la casilla del
+                gemelo virtual.
+        """
+        if robot is not None:
+            self.chk_pid_robot.setChecked(bool(robot))
+        if sim is not None:
+            self.chk_pid_sim.setChecked(bool(sim))
+
+    def sync_pid_targets(self, robot_connected: bool):
+        """Ajusta las casillas según la conexión del robot físico.
+
+        Sin robot, la casilla del robot se deshabilita y desmarca; la del
+        gemelo queda siempre disponible.
+
+        Args:
+            robot_connected (bool): True si hay robot conectado.
+        """
+        self.chk_pid_robot.setEnabled(robot_connected)
+        if not robot_connected:
+            self.chk_pid_robot.setChecked(False)
+        self.chk_pid_sim.setEnabled(True)
+
     def set_pid_only_mode(self, enabled: bool):
-        """Oculta todo excepto las ganancias PID."""
+        """Oculta todo excepto las casillas de plantas y las ganancias PID."""
         self.claw_label.setVisible(not enabled)
         self.claw_slider.setVisible(not enabled)
         self.claw_spinbox.setVisible(not enabled)
         self.holder_widget.setVisible(not enabled)
         self.coordinates_button.setVisible(not enabled)
+        self._targets_container.setVisible(True)
         self._pid_container.setVisible(True)
         # Asegurar que el layout principal se reajuste
         self.main_layout.activate()

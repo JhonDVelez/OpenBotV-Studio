@@ -394,17 +394,13 @@ def toggle_kinematics_controls(window, checked: bool):
 def toggle_pick_place_controls(window, checked: bool):
     """Alterna la visibilidad del panel de control pick and place.
 
+    El modo funciona con robot conectado (serial propio del worker) o en
+    virtual (solo gemelo de PyBullet), sin exigir conexión previa.
+
     Args:
         window: MainWindow propietaria.
         checked (bool): True para mostrar el panel de controles.
     """
-    if checked and not window.connected_to_robot:
-        notification_manager.notify(
-            "Para usar el modo Pick and Place debe conectar el robot previamente desde el menú Robot > Puerto.",
-            NotificationType.DIALOG_WARNING
-        )
-        return
-
     if checked:
         # Reseteamos otros modos antes de activar pick and place
         perform_system_reset(window)

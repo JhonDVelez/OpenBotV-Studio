@@ -183,6 +183,9 @@ class SignalBus(QObject):
         # --- Físico (ex PhysicalSignalManager.is_connected) -----------
         self.phy_is_connected = False
 
+        # --- Simulación (estado del gemelo PyBullet) ------------------
+        self._sim_running = False
+
         # --- Pick and place (ex PickPlaceSignalManager) ---------------
         self._pp_state_ready = False
         self._pp_active = False
@@ -280,6 +283,30 @@ class SignalBus(QObject):
             value (object): Nuevo valor.
         """
         self.cfg_change_requested.emit(filename, keys, value)
+
+    # ==================================================================
+    # Simulación (estado del gemelo PyBullet)
+    # ==================================================================
+
+    def sim_set_running(self, running: bool):
+        """Establece el estado de ejecución del gemelo físico (PyBullet).
+
+        Estado simple consultado por los workers de control para decidir
+        si el gemelo es una planta disponible; el ciclo de vida se comanda
+        con las señales sim_start/pause/stop_simulation.
+
+        Args:
+            running (bool): True si la simulación está activa.
+        """
+        self._sim_running = running
+
+    def sim_is_running(self) -> bool:
+        """Retorna True si el gemelo físico (PyBullet) está activo.
+
+        Returns:
+            bool: Estado de ejecución de la simulación.
+        """
+        return self._sim_running
 
     # ==================================================================
     # Pick and place (ex PickPlaceSignalManager)

@@ -11,13 +11,12 @@ Reglas de Arquitectura:
     - No tiene acceso directo a Workers o Widgets ajenos.
 """
 
-import math
 from PyQt6.QtCore import QObject, pyqtSlot
 from src.services.data import config_manager
 from src.services.data.signals import bus
 from src.services.data.enums import Modes, Units
 from src.services.data.timers import global_timer
-from src.services.data.utils import deg_to_rad, rad_to_deg, angulos_robotang, robotang_angulos
+from src.services.data.utils import deg_to_rad, rad_to_deg, angulos_robotang
 
 
 class DataController(QObject):
@@ -39,8 +38,6 @@ class DataController(QObject):
         self._mode = Modes.SLIDERS
         self._units = Units.RAD
         self._target_data = None
-        self._last_feedback = None
-        self._TARGET_TOLERANCE = 3.0
 
         # Gestores de señales globales (Bus Inter-Controller)
         self.sim_signals = bus
@@ -91,8 +88,6 @@ class DataController(QObject):
             self.update_target_positions)
         bus.sld_update_target_signal.connect(
             self.update_target_positions)
-        bus.kin_update_target_signal.connect(
-            self.update_target_positions)
 
         # Escuchar cambios de modo
         bus.sim_change_mode_signal.connect(self.set_mode)
@@ -120,13 +115,6 @@ class DataController(QObject):
         bus.pp_search_circle_request.connect(
             bus.search_set_circle)
 
-        # Bridge cinemática inversa: Pick and Place <-> Kinematics.
-        # Ninguna feature conoce a la otra; el DataController media el diálogo.
-        bus.pp_inverse_kinematics_requested.connect(
-            bus.kin_inverse_kinematics_requested.emit)
-        bus.kin_inverse_kinematics_ready.connect(
-            bus.pp_inverse_kinematics_ready.emit)
-
         # Bridge Camera (vision) -> Simulation / Pick and Place
         bus.cam_clear_spheres_request.connect(
             bus.sim_clear_spheres.emit)
@@ -153,37 +141,24 @@ class DataController(QObject):
 
     @pyqtSlot()
     def _handle_sync_tick(self):
-        """Despacha posiciones y detecta llegada al objetivo."""
+        """Despacha el objetivo de sliders a las plantas (solo modo SLIDERS).
+
+        En KINEMATIC y PICK_PLACE los workers de control gestionan las
+        plantas (serial propio y gemelo); el tick de sliders no debe pisar
+        sus comandos ni enviar objetivos obsoletos.
+        """
         if self._target_data is None:
             return
 
-        # Si estamos en modo KINEMATIC, solo permitimos enviar al robot si es parte de una operacion P&P
-        # (ej. el Worker emite comandos directos via action_request)
-        if self._mode == Modes.KINEMATIC and not bus.pp_is_running():
-            return
-        
-        if self._mode == Modes.PICK_PLACE and not bus.pp_is_running():
-            # Si estamos en Pick & Place pero la secuencia no está corriendo, no enviar sync tick de sliders
+        if self._mode in (Modes.KINEMATIC, Modes.PICK_PLACE):
             return
 
         data_rad = deg_to_rad(self._target_data)
-        # print(f"[DEBUG DataController] _handle_sync_tick emitting update_pybullet_signal with target_data: {self._target_data}, mode: {self._mode}")
         bus.sim_update_pybullet_signal.emit(data_rad.tolist())
 
         if bus.phy_is_connected:
             robot_positions = list(angulos_robotang(*self._target_data))
             bus.phy_send_to_robot.emit(robot_positions)
-
-        if self._last_feedback is not None:
-            feedback = list(robotang_angulos(*self._last_feedback))
-            if all(
-                abs(self._target_data[i] - feedback[i])
-                < self._TARGET_TOLERANCE
-                for i in range(min(len(self._target_data),
-                                   len(feedback)))
-            ):
-                bus.pp_target_reached.emit(feedback)
-                self._last_feedback = None
 
     # --- Slots de Procesamiento Lógico ---
 
@@ -201,23 +176,23 @@ class DataController(QObject):
 
     @pyqtSlot(list)
     def _on_simulation_feedback(self, actual_positions: list):
-        """Procesa feedback de la simulación para gráficos y target_reached."""
+        """Procesa feedback de la simulación para los gráficos."""
         pos_deg = rad_to_deg(actual_positions)
         bus.sim_update_graph_signal.emit(pos_deg)
-        if not bus.phy_is_connected:
-            self._last_feedback = pos_deg
 
     @pyqtSlot(list, dict)
     def _on_model_feedback(self, motor_positions, sphere_positions):
-        """Procesa feedback de la simulación para el modelo 3D."""
-        if self._mode not in (Modes.KINEMATIC, Modes.PICK_PLACE):
-            pos_deg = rad_to_deg(motor_positions)
-            # print(f"[DEBUG DataController] _on_model_feedback emitting update_robot_from_simulation with pos_deg: {pos_deg}")
-            bus.sim_update_robot_from_simulation.emit(pos_deg)
+        """Procesa feedback de la simulación para el modelo 3D.
+
+        El QML sigue siempre la pose real del gemelo en todos los modos:
+        la negación de índices 4-5 que hace PyBullet al escribir se
+        cancela con la que aplica el worker visual al pintar.
+        """
+        pos_deg = rad_to_deg(motor_positions)
+        bus.sim_update_robot_from_simulation.emit(pos_deg)
         bus.sim_sphere_pos_from_pybullet.emit(sphere_positions)
 
     @pyqtSlot(list, list)
     def _on_physical_feedback(self, actual_positions: list, temperatures: list):
-        """Procesa feedback del robot real para sincronizar sistema."""
+        """Procesa feedback del robot real para los gráficos."""
         bus.phy_update_graph_signal.emit(actual_positions)
-        self._last_feedback = actual_positions

@@ -3,16 +3,17 @@ Módulo que controla la lógica de Pick and Place y la interacción con la UI.
 
 El PickAndPlaceController orquesta la detección de objetos a través de la cámara,
 la confirmación del usuario, y coordina el PickAndPlaceWorker con el bus global
-de señales para ejecutar la secuencia de pickup y colocación.
+de señales para ejecutar la secuencia de pickup y colocación. Funciona con el
+robot físico (serial suspendiendo al RobotWorker) o en modo virtual (solo el
+gemelo de PyBullet).
 
 Conexiones:
     - Overlay -> Controller: sphere_selected(str) cuando el usuario elige una esfera.
-    - Bus Global -> Worker: poses_from_camera, target_reached, inverse_kinematics_ready.
-    - Worker -> Bus Global: action_request(dict) ruteado a Simulation/Physical/Kinematics.
+    - Bus Global -> Worker: poses_from_camera.
+    - Worker -> Controller: sequence_completed, sequence_failed, estados de UI.
 """
 
-from PyQt6.QtCore import QObject, pyqtSlot, QEvent, QTimer, QThread
-from src.services.data.utils import robotang_angulos
+from PyQt6.QtCore import QObject, pyqtSlot, QEvent, QThread
 import numpy as np
 from src.services.data.signals import bus
 from src.features.pick_and_place.pick_and_place_widget import PickAndPlaceWidget
@@ -26,8 +27,8 @@ class PickAndPlaceController(QObject):
     """Controlador para el feature de Pick and Place.
 
     Gestiona la interaccion del usuario sobre la vista de camara,
-    instancia y coordina el PickAndPlaceWorker, y rutea las acciones
-    del worker hacia el bus global de señales.
+    instancia y coordina el PickAndPlaceWorker, y gestiona el ciclo de
+    vida del modo (entrada serial/virtual, salida y limpieza).
 
     Attributes:
         overlay: Widget transparente para seleccion de esferas.
@@ -40,57 +41,52 @@ class PickAndPlaceController(QObject):
         self.signal_manager = bus
         self.sim_signals = bus
         self.kinematics_controller = None
+        self.graph_controller = None
         self.camera_widget = camera_widget
         self._filter_installed = False
+        self._serial_suspendido = False
 
         self.overlay = PickAndPlaceWidget()
-        # Initialize worker later when kinematics_controller is available?
-        # Or just pass it when ready. For now, let's initialize worker in set_kinematics_controller
-        self.worker = None 
+        # El worker se instancia en set_kinematics_controller
+        self.worker = None
         self._current_color = None
-        
-        self._last_emitted_angulos = None
-        self._last_processed_pos = None
-        self._smoothed_pos = None
 
         if camera_widget:
             self.set_camera_widget(camera_widget)
-    
+
     def _create_worker(self):
         if hasattr(self, 'worker') and self.worker:
             try:
-                bus.pp_poses_from_camera.disconnect(self.worker.on_poses_from_camera)
-                bus.pp_target_reached.disconnect(self.worker.on_target_reached)
-                bus.pp_inverse_kinematics_ready.disconnect(self.worker.on_ik_ready)
-                self.worker.action_request.disconnect(self._route_action)
-                self.worker.sequence_completed.disconnect(self._on_sequence_completed)
-                self.worker.sequence_failed.disconnect(self._on_sequence_failed)
-                self.worker.status_message_updated.disconnect(self.overlay.update_status_message)
-                self.worker.mode_change_requested.disconnect(self.overlay.set_mode)
-                self.worker.vision_search_request.disconnect(self._on_vision_search_request)
-                self.worker.joint_update.disconnect(self._on_joint_update)
+                bus.pp_poses_from_camera.disconnect(
+                    self.worker.on_poses_from_camera)
+                self.worker.sequence_completed.disconnect(
+                    self._on_sequence_completed)
+                self.worker.sequence_failed.disconnect(
+                    self._on_sequence_failed)
+                self.worker.status_message_updated.disconnect(
+                    self.overlay.update_status_message)
+                self.worker.mode_change_requested.disconnect(
+                    self.overlay.set_mode)
+                self.worker.vision_search_request.disconnect(
+                    self._on_vision_search_request)
             except Exception:
                 pass
             self.worker.force_abort()
 
-        self.worker = PickAndPlaceWorker(kinematics_controller=self.kinematics_controller)
-        
+        self.worker = PickAndPlaceWorker(
+            kinematics_controller=self.kinematics_controller)
+
         bus.pp_poses_from_camera.connect(
             self.worker.on_poses_from_camera)
-        bus.pp_target_reached.connect(
-            self.worker.on_target_reached)
-        bus.pp_inverse_kinematics_ready.connect(
-            self.worker.on_ik_ready)
 
-        self.worker.action_request.connect(self._route_action)
         self.worker.sequence_completed.connect(self._on_sequence_completed)
         self.worker.sequence_failed.connect(self._on_sequence_failed)
-        self.worker.status_message_updated.connect(self.overlay.update_status_message)
+        self.worker.status_message_updated.connect(
+            self.overlay.update_status_message)
         self.worker.mode_change_requested.connect(self.overlay.set_mode)
-        self.worker.vision_search_request.connect(self._on_vision_search_request)
-        self.worker.joint_update.connect(self._on_joint_update)
-        self.worker.direct_joint_update.connect(lambda pos: self._update_simulation_with_positions(pos, smooth=False))
-        
+        self.worker.vision_search_request.connect(
+            self._on_vision_search_request)
+
         if self.graph_controller:
             self.graph_controller.set_kinematics_worker(self.worker)
 
@@ -102,7 +98,7 @@ class PickAndPlaceController(QObject):
         self.noti_manager = notification_manager
 
     def _setup_connections(self):
-        """        Configura conexiones entre señales globales, worker y overlay."""
+        """Configura conexiones entre señales globales, worker y overlay."""
         bus.pp_state_changed.connect(self._on_state_changed)
         bus.pp_spheres_detected_2d.connect(
             self._on_spheres_detected_2d)
@@ -114,13 +110,25 @@ class PickAndPlaceController(QObject):
         self.overlay.place_requested.connect(self._request_place)
         self.overlay.reset_requested.connect(self.restart_sequence)
 
-        sim_signals = bus
-        phys_signals = bus
-        # bus.sim_sensor_position_signal.connect(
-        #     self.worker.on_simulation_feedback_update)
+    def _hay_robot(self):
+        """True si hay robot físico conectado con servicio disponible."""
+        return (bus.phy_is_connected
+                and self.kinematics_controller is not None
+                and self.kinematics_controller._robot_service is not None)
+
+    def _asegurar_simulacion(self):
+        """Garantiza que el gemelo esté corriendo para el modo virtual.
+
+        El arranque real lo gestiona el SimulationController vía el bus;
+        se marca el estado de inmediato para que el worker pueda enviar
+        comandos al gemelo sin esperar al siguiente ciclo del hilo de UI.
+        """
+        if not bus.sim_is_running():
+            bus.sim_set_running(True)
+            bus.sim_start_request.emit()
 
     def set_camera_widget(self, camera_widget):
-        """        Asocia el controlador con el widget de cámara."""
+        """Asocia el controlador con el widget de cámara."""
         if self.camera_widget and self._filter_installed:
             self.camera_widget.removeEventFilter(self)
             self._filter_installed = False
@@ -161,24 +169,35 @@ class PickAndPlaceController(QObject):
             self.overlay.show()
             self._sync_overlay_stack()
             self._install_filter()
+
+            robot_conectado = self._hay_robot()
             # Show PID panel & restrict UI
             if self.kinematics_controller:
-                if self.kinematics_controller._robot_service:
-                    com = self.kinematics_controller._robot_service.get_com()
-                    self.kinematics_controller._robot_service.suspend_serial()
-                    
-                    self._create_worker()
-                    self.worker.worker_ready.connect(self._start_sequence_when_ready)
-                    self.worker.start_worker(com)
-                
                 widget = self.kinematics_controller.get_widget()
+                widget.sync_pid_targets(robot_conectado)
                 widget.show()
                 widget.set_pid_only_mode(True)
                 widget.set_inputs_enabled(True)
-            
+
+            # Siempre se crea un worker: con robot (serial propio) o virtual
+            self._create_worker()
+            self.worker.worker_ready.connect(self._start_sequence_when_ready)
+            if robot_conectado:
+                self._serial_suspendido = True
+                self.kinematics_controller._robot_service.suspend_serial()
+                com = self.kinematics_controller._robot_service.get_com()
+                self.worker.start_worker(com)
+            else:
+                self._serial_suspendido = False
+                self._asegurar_simulacion()
+                self.noti_manager.notify(
+                    "Pick and Place virtual: sin robot, la secuencia se "
+                    "ejecuta solo en el gemelo", NotificationType.TOAST_INFO)
+                self.worker.start_virtual()
+
             if self.graph_controller:
-                self.graph_controller.set_graph_mode(False) # Cartesian
-            
+                self.graph_controller.set_graph_mode(False)  # Cartesian
+
             # Only start sequence if currently in IDLE
             if self.worker and self.worker.current_state_value == 'idle':
                 self.worker.start_sequence()
@@ -186,9 +205,10 @@ class PickAndPlaceController(QObject):
             self.overlay.hide()
             if self.worker:
                 self.worker.abort()
-                self.worker.port_released.connect(self._on_worker_port_released_for_pp)
+                self.worker.port_released.connect(
+                    self._on_worker_port_released_for_pp)
                 self.worker.release_and_cleanup()
-            
+
             if self.camera_widget and self._filter_installed:
                 self.camera_widget.removeEventFilter(self)
                 self._filter_installed = False
@@ -197,34 +217,37 @@ class PickAndPlaceController(QObject):
                 widget = self.kinematics_controller.get_widget()
                 widget.hide()
                 widget.set_pid_only_mode(False)
-            
+
             if self.graph_controller:
-                self.graph_controller.set_graph_mode(True) # Back to default
+                self.graph_controller.set_graph_mode(True)  # Back to default
 
     @pyqtSlot()
     def _on_worker_port_released_for_pp(self):
         if self.worker:
             try:
-                self.worker.port_released.disconnect(self._on_worker_port_released_for_pp)
-            except:
+                self.worker.port_released.disconnect(
+                    self._on_worker_port_released_for_pp)
+            except Exception:
                 pass
             self.worker.force_abort()
-            
-        # Resume main robot serial
-        if self.kinematics_controller and self.kinematics_controller._robot_service:
+
+        # Resume main robot serial (solo si este modo lo suspendió)
+        if (self._serial_suspendido and self.kinematics_controller
+                and self.kinematics_controller._robot_service):
             QThread.msleep(200)
             self.kinematics_controller._robot_service.resume_serial()
-
+        self._serial_suspendido = False
 
     @pyqtSlot()
     def _start_sequence_when_ready(self):
         """Callback cuando el worker está listo."""
         if self.worker:
             try:
-                self.worker.worker_ready.disconnect(self._start_sequence_when_ready)
-            except:
+                self.worker.worker_ready.disconnect(
+                    self._start_sequence_when_ready)
+            except Exception:
                 pass
-        
+
         if self.worker and self.worker.current_state_value == 'idle':
             self.worker.start_sequence()
 
@@ -270,7 +293,8 @@ class PickAndPlaceController(QObject):
                 self.overlay.update()
 
                 # Congelar detección de ChArUco una vez obtenida la pose en modo place
-                if self.overlay._mode == 'place' and self.worker and self.worker.current_state_value == 'waiting_for_input':
+                if (self.overlay._mode == 'place' and self.worker
+                        and self.worker.current_state_value == 'waiting_for_input'):
                     bus.search_set_charuco(False)
 
     @pyqtSlot(str)
@@ -303,20 +327,6 @@ class PickAndPlaceController(QObject):
         # Ruteado por el DataController hacia el bus (search_charuco/circle_changed).
         bus.pp_search_circle_request.emit(False)
         self.worker.place(coords)
-
-    @pyqtSlot(dict)
-    def _route_action(self, action):
-        """Rutea las acciones del worker hacia el bus global de señales.
-
-        Args:
-            action (dict): Acción emitida por el worker con claves
-                'type' y datos específicos del tipo de acción.
-        """
-        action_type = action.get('type')
-        if action_type == 'move':
-            bus.sim_update_target_signal.emit(action['target'])
-        elif action_type == 'compute_ik':
-            bus.pp_inverse_kinematics_requested.emit(action)
 
     @pyqtSlot()
     def _on_sequence_completed(self):
@@ -402,27 +412,3 @@ class PickAndPlaceController(QObject):
         """Reanuda el worker de Pick and Place."""
         if self.worker:
             self.worker.resume()
-
-    @pyqtSlot(list)
-    def _on_joint_update(self, joints):
-        self._update_simulation_with_positions(joints, smooth=True)
-
-    def _update_simulation_with_positions(self, positions, smooth=True):
-        """Procesa y emite posiciones a la simulación (con opción de suavizado EMA)."""
-        positions = list(positions)
-        if len(positions) >= 6:
-            positions[4] = positions[4] * -1
-            positions[5] = positions[5] * -1
-        
-        if not smooth:
-            self._smoothed_pos = positions
-        else:
-            alpha = 0.1
-            if self._smoothed_pos is None:
-                self._smoothed_pos = positions
-            else:
-                self._smoothed_pos = [
-                    (alpha * new) + ((1 - alpha) * old)
-                    for new, old in zip(positions, self._smoothed_pos)
-                ]
-        bus.sim_update_robot_from_kinematics.emit(self._smoothed_pos)

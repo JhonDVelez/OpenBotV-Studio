@@ -14,7 +14,6 @@ Conexiones:
 from PyQt6.QtCore import pyqtSlot, QObject
 from src.services.simulation import PhysicsWorker
 from src.services.data.signals import bus
-from src.services.data.signals import bus
 from src.services.data.timers import global_timer
 from src.services.data.enums import Modes
 from src.services.ui.notification_manager import notification_manager
@@ -94,13 +93,11 @@ class SimulationController(QObject):
             lambda mode: self._set_active_source(Modes.PICK_PLACE))
 
         # Escuchar señales especificas
-        bus.sim_update_robot_from_kinematics.connect(
-            self._update_from_kinematics)
         bus.sim_update_robot_from_sliders.connect(
             self._update_from_sliders)
         bus.sim_update_robot_from_simulation.connect(
             self._update_from_simulation)
-            
+
         bus.sim_sphere_pos_from_camera.connect(
             self.update_sphere_pose_from_camera)
         bus.sim_sphere_pos_from_pybullet.connect(
@@ -114,17 +111,7 @@ class SimulationController(QObject):
         bus.sim_sphere_radius_changed.connect(
             self.physics_worker.update_sphere_scale)
 
-        # Nuevas conexiones para orquestación vía DataController
-        bus.sim_start_simulation.connect(
-            self.start_simulation)
-        bus.sim_pause_simulation.connect(
-            self.pause_simulation)
-        bus.sim_resume_simulation.connect(
-            self.resume_simulation)
-        bus.sim_stop_simulation.connect(
-            self.stop_simulation)
-
-        # Nuevas conexiones para orquestación vía DataController
+        # Orquestación de ciclo de vida vía DataController
         bus.sim_start_simulation.connect(
             self.start_simulation)
         bus.sim_pause_simulation.connect(
@@ -235,18 +222,6 @@ class SimulationController(QObject):
             self.simulation_worker._pending_positions = None
 
     @pyqtSlot(list)
-    def _update_from_kinematics(self, joint_positions: list):
-       #print(f"[DEBUG SimulationController] _update_from_kinematics: active_source={self._active_source}, pp_running={bus.pp_is_running()}, positions={joint_positions}")
-        if self._active_source == Modes.SLIDERS:
-            print("[DEBUG SimulationController] BLOCKED kinematics update because active_source is SLIDERS")
-            return
-        # Actualizar si el modo activo es cinemática o pick & place, o si la secuencia P&P está corriendo
-        if self._active_source in (Modes.KINEMATIC, Modes.PICK_PLACE) or bus.pp_is_running():
-            self.update_simulation(joint_positions)
-        else:
-            print("[DEBUG SimulationController] DISCARDED kinematics update: conditions not met")
-
-    @pyqtSlot(list)
     def _update_from_sliders(self, joint_positions: list):
         #print(f"[DEBUG SimulationController] _update_from_sliders: active_source={self._active_source}, positions={joint_positions}")
         if self._active_source != Modes.SLIDERS:
@@ -256,10 +231,11 @@ class SimulationController(QObject):
 
     @pyqtSlot(list)
     def _update_from_simulation(self, joint_positions: list):
-        #print(f"[DEBUG SimulationController] _update_from_simulation: active_source={self._active_source}, positions={joint_positions}")
-        if self._active_source in (Modes.KINEMATIC, Modes.PICK_PLACE):
-            print(f"[DEBUG SimulationController] BLOCKED simulation feedback update because active_source is {self._active_source}")
-            return
+        """Actualiza el modelo 3D con la pose real del gemelo.
+
+        Sin bloqueo por modo: el QML sigue siempre la pose real de
+        PyBullet en todos los modos de operación.
+        """
         self.update_simulation(joint_positions)
 
     @pyqtSlot(list)
@@ -312,6 +288,7 @@ class SimulationController(QObject):
                     self.simulation_worker.start()
 
             self.physics_worker.start()
+            bus.sim_set_running(True)
         except RuntimeError as e:
             print(f"[DEBUG] RuntimeError iniciando simulación: {e}")
             self.noti_manager.notify(
@@ -323,6 +300,7 @@ class SimulationController(QObject):
         """
         if self.physics_worker:
             self.physics_worker.pause()
+            bus.sim_set_running(False)
 
     def resume_simulation(self):
         """
@@ -330,6 +308,7 @@ class SimulationController(QObject):
         """
         if self.physics_worker:
             self.physics_worker.resume()
+            bus.sim_set_running(True)
 
     def stop_simulation(self):
         """
@@ -337,6 +316,7 @@ class SimulationController(QObject):
         """
         if self.simulation_worker:
             self.physics_worker.pause()
+            bus.sim_set_running(False)
 
         if self.simulation_widget.window_container:
             self.simulation_widget.container_hide()
