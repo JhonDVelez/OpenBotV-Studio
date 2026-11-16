@@ -68,15 +68,10 @@ class SimulationController(QObject):
         self.physics_worker.sensor_updated.connect(
             bus.sim_sensor_position_signal.emit)
 
-        # Orquestación de Timers para el worker
+        # El worker de física ejecuta su propio bucle en su hilo
+        # (240 Hz de física, 60 Hz de pose, 10 Hz de gráficas), sin GlobalTimer.
         self.global_timer = global_timer
         self.global_timer.start()
-        self.global_timer.update_tick.connect(
-            self.physics_worker.update_simulation)
-        self.global_timer.model_tick.connect(
-            self.physics_worker.update_3d_model)
-        self.global_timer.sync_simulation_tick.connect(
-            self.physics_worker.update_graphs)
 
         # Manejo de tema
         self.theme_manager = bus
@@ -333,6 +328,8 @@ class SimulationController(QObject):
             event (QCloseEvent): Evento de Qt.
         """
         self.stop_simulation()
+        if self.physics_worker:
+            self.physics_worker.stop()
         if self.simulation_worker:
             try:
                 self.simulation_worker.deleteLater()

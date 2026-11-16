@@ -1,20 +1,26 @@
 """
-Módulo del worker de simulación del brazo robótico en PyBullet.
+Módulo del worker de física del brazo robótico en PyBullet.
 
-Proporciona la clase PhysicsWorker que gestiona la actualización
-periódica de la simulación, la actualización del modelo 3D en la
-interfaz y el envío de datos a las gráficas.
+Proporciona la clase PhysicsWorker, que ejecuta el bucle de simulación en
+su propio hilo: avanza PyBullet a 240 Hz (un stepSimulation cada 1/240 s
+de tiempo real; el dt ya lo fija el preloader con setTimeStep), emite la
+pose al modelo 3D QML a 60 Hz y los datos de gráficas a 10 Hz.
+
+Los comandos que tocan PyBullet (objetivos, esferas, escala) llegan desde
+el hilo principal vía una cola y solo se ejecutan dentro del bucle, de
+forma que PyBullet vive en un único hilo.
 
 Conexiones:
     - Conectado a bus.sim_update_pybullet_signal
       para recibir posiciones objetivo.
-    - Conectado a los ticks de GlobalTimer (update_tick, model_tick,
-      sync_simulation_tick) para sincronizar la simulación.
     - Emite posiciones a traves del bus (señales sim_)
       (model_position_signal, sensor_position_signal).
 """
 
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, QElapsedTimer, QTimer
+import queue
+import time
+
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot
 from src.services.simulation.physics_pybullet import RobotArmPhysics
 
 
@@ -28,6 +34,12 @@ class PhysicsWorker(QThread):
         robot_id: Identificador del robot cargado en PyBullet.
     """
 
+    # Cadencias del bucle: 240 Hz de física, 60 Hz de pose y 10 Hz de gráficas.
+    STEP_HZ = 240.0
+    POSE_EVERY = 4
+    SENSOR_EVERY = 24
+    PAUSE_SLEEP_S = 0.005
+
     # Señales locales para comunicación con el controlador
     # (Evita el uso de SignalManagers globales en el worker)
     model_updated = pyqtSignal(list, dict)
@@ -38,13 +50,16 @@ class PhysicsWorker(QThread):
         self.target_position = [0, 0, 0, 0, 0, 0]
         self.target_position_prev = [1, 0, 0, 0, 0, 0]
         self.physic = None
-        self.timer = None
-        self._running = False
-        self._paused = False
         self.max_velocity = 1.5
 
         self.physic = RobotArmPhysics()
         self.physic.load_models(robot_id)
+
+        self._commands = queue.SimpleQueue()
+        self._running = False
+        self._quit = False
+        self._tick = 0
+        self._last_pose = None
 
     def set_max_velocity(self, max_vel):
         """Define la velocidad máxima de los motores en la simulación.
@@ -60,111 +75,145 @@ class PhysicsWorker(QThread):
                   "usando la velocidad máxima por defecto: 1 rad/s")
             self.max_velocity = 1.5
 
-    def run(self):
-        """Ciclo principal del subproceso.
+    # --- Ciclo de vida del hilo ---
 
-        Activa la simulación y establece la velocidad máxima de los motores.
-        """
-        self._running = True
-        self.set_max_velocity(1.2)
-        if self._paused:
-            self._paused = False
+    def start(self):
+        """Arranca el hilo la primera vez; si ya corre, solo reactiva el bucle."""
+        if self.isRunning():
+            self._running = True
+            return
+        super().start()
 
     def pause(self):
-        """Pausa la simulación."""
+        """Pausa el bucle (el hilo queda a la espera, sin busy-spin)."""
         self._running = False
-        self._paused = True
 
     def resume(self):
         """Reanuda la simulación pausada."""
         self._running = True
-        self._paused = False
 
-    @pyqtSlot()
-    def update_simulation(self):
-        """        Actualiza la posición de los motores en la simulación.
+    def stop(self):
+        """Detiene el hilo de forma definitiva y espera su cierre."""
+        self._quit = True
+        self._running = False
+        if self.isRunning():
+            self.wait(2000)
 
-        Compara las posiciones objetivo con las previas y, si son
-        diferentes, actualiza los motores. Avanza la simulación si
-        la diferencia entre objetivo y actual supera 0.0005 rad.
+    def run(self):
+        """Ciclo principal del subproceso.
+
+        Pacing propio: un paso de física cada 1/240 s de tiempo real. La
+        deuda temporal se descarta (no se acumula) para no acelerar la
+        simulación tras una pausa o un bloqueo puntual.
         """
-        if self._running:
-            if len(self.target_position) == len(self.physic.joint_indices):
-                if not all(x == y for x, y in zip(self.target_position, self.target_position_prev)):
-                    self.physic.set_joint_positions(
-                        self.target_position, self.max_velocity)
-                    self.target_position_prev = self.target_position
-                is_moving = any(
-                    abs(x - y) >= 0.000001
-                    for x, y in zip(self.target_position, self.physic.get_joint_positions())
-                )
-                if is_moving or self.physic.has_released_spheres():
-                    self.physic.step_simulation()
+        self._running = True
+        self.set_max_velocity(1.2)
+        dt = 1.0 / self.STEP_HZ
+        next_t = time.perf_counter() + dt
+        while not self._quit:
+            self._drain_commands()
+            if not self._running:
+                time.sleep(self.PAUSE_SLEEP_S)
+                next_t = time.perf_counter() + dt
+                continue
+            self._step()
+            delay = next_t - time.perf_counter()
+            if delay > 0:
+                time.sleep(delay)
+            else:
+                next_t = time.perf_counter()
+            next_t += dt
 
-    @pyqtSlot()
-    def update_3d_model(self):
-        """        Actualiza los ángulos de la simulación mostrados en el modelo 3D.
+    # --- Bucle de física ---
 
-        Emite las posiciones articulares actuales al modelo 3D de la interfaz.
-        """
-        if self._running:
+    def _drain_commands(self):
+        """Ejecuta en el hilo del worker todos los comandos pendientes."""
+        while True:
+            try:
+                op, payload = self._commands.get_nowait()
+            except queue.Empty:
+                return
+            if op == "target":
+                self.target_position = payload
+            elif op == "spheres":
+                self.physic.update_spheres(payload)
+            elif op == "release":
+                self.physic.release_sphere(payload)
+            elif op == "reattach":
+                self.physic.reattach_sphere(payload)
+            elif op == "hide_all":
+                self.physic.hide_all_spheres()
+            elif op == "scale":
+                self.physic.update_sphere_scale(payload)
+
+    def _step(self):
+        """Un ciclo del bucle: objetivos, paso de física y lectura de pose."""
+        if not self.physic.joint_indices:
+            return
+        pose = self.physic.get_joint_positions()
+        if len(self.target_position) == len(self.physic.joint_indices):
+            if not all(x == y for x, y in zip(self.target_position, self.target_position_prev)):
+                # Copia: set_joint_positions niega in-place los índices 4 y 5.
+                self.physic.set_joint_positions(
+                    list(self.target_position), self.max_velocity)
+                self.target_position_prev = list(self.target_position)
+            is_moving = any(
+                abs(x - y) >= 0.000001
+                for x, y in zip(self.target_position, pose)
+            )
+            if is_moving or self.physic.has_released_spheres():
+                self.physic.step_simulation()
+                pose = self.physic.get_joint_positions()
+        self._last_pose = pose
+        self._tick += 1
+        if self._tick % self.POSE_EVERY == 0:
             self.model_updated.emit(
-                self.physic.get_joint_positions(), self.physic.get_sphere_position())
+                self._last_pose, self.physic.get_sphere_position())
+        if self._tick % self.SENSOR_EVERY == 0:
+            self.sensor_updated.emit(self._last_pose)
 
-    @pyqtSlot()
-    def update_graphs(self):
-        """        Envía datos de posiciones a las gráficas.
-
-        Se ejecuta típicamente cada 100 ms a través del tick
-        sync_simulation_tick de GlobalTimer.
-        """
-        if self._running:
-            self.sensor_updated.emit(
-                self.physic.get_joint_positions())
+    # --- Entradas desde el hilo principal (thread-safe: encolar/flags) ---
 
     @pyqtSlot(list)
     def update_target(self, target_position):
-        """Actualiza los ángulos objetivo de la simulación.
+        """Encola los ángulos objetivo de la simulación.
 
         Args:
             target_position (list): Lista de 6 posiciones objetivo en radianes
                 (espacio angular, centrado en 0).
         """
-        self.model_updated.emit(
-            self.physic.get_joint_positions(), self.physic.get_sphere_position())
-        self.target_position = target_position
-        self.update_simulation()
+        self._commands.put(("target", list(target_position)))
 
     def update_sphere_initial_positions(self, poses: dict):
-        self.physic.update_spheres(poses)
+        """Encola las posiciones iniciales de las esferas desde la cámara."""
+        self._commands.put(("spheres", poses))
 
     @pyqtSlot(str)
     def release_sphere(self, color: str):
         """
-        Libera una esfera para que PyBullet deje de recibir poses de cámara.
+        Encola la liberación de una esfera para que PyBullet use física real.
 
         Args:
             color (str): Identificador de la esfera seleccionada.
         """
-        self.physic.release_sphere(color)
+        self._commands.put(("release", color))
 
     @pyqtSlot(str)
     def reattach_sphere(self, color: str):
         """
-        Reasocia una esfera para que vuelva a seguir la cámara.
+        Encola la reasociación de una esfera para que siga a la cámara.
 
         Args:
             color (str): Identificador de la esfera.
         """
-        self.physic.reattach_sphere(color)
+        self._commands.put(("reattach", color))
 
     @pyqtSlot()
     def hide_all_spheres(self):
-        """Oculta todas las esferas que no están siendo manipuladas."""
-        self.physic.hide_all_spheres()
+        """Encola la ocultación de todas las esferas no manipuladas."""
+        self._commands.put(("hide_all", None))
 
     @pyqtSlot(float)
     def update_sphere_scale(self, radius):
-        """Actualiza el tamaño de las esferas en PyBullet."""
-        if self.physic:
-            self.physic.update_sphere_scale(radius)
+        """Encola el cambio de tamaño de las esferas en PyBullet."""
+        self._commands.put(("scale", radius))

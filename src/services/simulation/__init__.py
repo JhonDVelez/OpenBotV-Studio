@@ -8,9 +8,8 @@ modelo visible en la interfaz, y el archivo URDF empleado por PyBullet.
 Señales:
     - bus.sim_update_pybullet_signal: Actualiza posiciones
       objetivo de la simulación.
-    - GlobalTimer.update_tick: Sincroniza el paso de simulación.
-    - GlobalTimer.model_tick: Actualiza la visualización 3D.
-    - GlobalTimer.sync_simulation_tick: Actualiza las gráficas.
+    - PhysicsWorker.model_updated: Pose a 60 Hz para el modelo 3D.
+    - PhysicsWorker.sensor_updated: Telemetría a 10 Hz para las gráficas.
 """
 
 from .physics_worker import PhysicsWorker
