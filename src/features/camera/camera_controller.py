@@ -16,8 +16,8 @@ Conexiones:
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, QObject
 from src.features.camera.camera_widget import CameraWidget
 from src.features.camera.camera_worker import CameraWorker
-from src.services.data.signals import bus, DrawViewSignalManager
-from src.services.ui.notification_manager import NotificationManager
+from src.services.data.signals import bus, draw_view
+from src.services.ui.notification_manager import notification_manager
 from src.services.data.enums.types import NotificationType
 
 
@@ -57,14 +57,14 @@ class CameraController(QObject):
         init_view_config = bus.cfg_get_param(
             "settings.json", "camera", "view", default={})
         self.theme_signal_manager = bus
-        self.draw_signal_manager = DrawViewSignalManager.get_instance()
+        self.draw_signal_manager = draw_view
         self.camera_signal_manager = bus
         self.search_signal_manager = bus
 
         self.view = CameraWidget(parent, self.camera_config, init_view_config)
         self._setup_connections()
 
-        self.noti_manager = NotificationManager.get_instance()
+        self.noti_manager = notification_manager
 
     def _setup_connections(self):
         """

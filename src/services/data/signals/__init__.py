@@ -15,9 +15,10 @@ Uso:
 """
 
 from .bus import bus
-from .draw_view import DrawViewSignalManager
+from .draw_view import DrawViewSignalManager, draw_view
 
 __all__ = [
     'bus',
     'DrawViewSignalManager',
+    'draw_view',
 ]

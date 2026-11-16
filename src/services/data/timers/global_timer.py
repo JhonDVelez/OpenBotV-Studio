@@ -1,13 +1,17 @@
 """
 Módulo que define el temporizador global de sincronización.
 
-Proporciona un singleton QTimer que emite ticks a diferentes
-frecuencias para la actualización del modelo 3D, los gráficos
-y la sincronización con el robot físico.
+Proporciona una instancia de módulo (``global_timer``) de QTimer que
+emite ticks a diferentes frecuencias para la actualización del modelo
+3D, los gráficos y la sincronización con el robot físico.
+
+El timer NO arranca automáticamente al importar: el primer consumidor
+(de forma habitual ``DataController``) debe llamar ``global_timer.start()``
+(comportamiento idéntico al singleton anterior, donde ``get_instance()``
+lo arrancaba).
 """
 
 from PyQt6.QtCore import pyqtSignal, QObject, QTimer
-from ..signals import bus
 
 
 class GlobalTimer(QObject):
@@ -30,35 +34,14 @@ class GlobalTimer(QObject):
     model_tick = pyqtSignal()
     sync_robot_tick = pyqtSignal()
 
-    _instance = None
-    _initialized = False
-
-    @classmethod
-    def get_instance(cls):
-        """
-        Obtiene la instancia única del temporizador (Singleton).
-
-        Returns:
-            GlobalTimer: Instancia única.
-        """
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-
     def __init__(self):
-        if GlobalTimer._initialized:
-            return
         super().__init__()
         self._timer = QTimer()
         self._timer.setInterval(4)
         self._timer.timeout.connect(self._tick)
-        self._timer.start()
 
         self._sync_counter = 0
         self._model_counter = 0
-        GlobalTimer._initialized = True
-
-        self.signal_manager = bus
 
     def _tick(self):
         """
@@ -80,7 +63,7 @@ class GlobalTimer(QObject):
 
     def start(self):
         """
-        Inicia el temporizador si no está activo.
+        Inicia el temporizador si no está activo (idempotente).
         """
         if not self._timer.isActive():
             self._timer.start()
@@ -91,3 +74,7 @@ class GlobalTimer(QObject):
         """
         if self._timer.isActive():
             self._timer.stop()
+
+
+# Instancia única del temporizador para toda la aplicación.
+global_timer = GlobalTimer()

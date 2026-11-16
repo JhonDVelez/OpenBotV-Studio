@@ -1,11 +1,11 @@
 import serial
 import threading
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject
+
 
 class SerialPortManager(QObject):
     """Gestor centralizado para la comunicación serial con limpieza estricta de buffers."""
-    _instance = None
-    
+
     def __init__(self):
         super().__init__()
         self._serial = None
@@ -13,12 +13,6 @@ class SerialPortManager(QObject):
         self._lock = threading.Lock()
         self._io_lock = threading.Lock()
         self._active_worker = None
-
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
 
     def request_access(self, com, owner_id):
         """Solicita acceso al puerto serial y limpia buffers rigurosamente."""
@@ -98,3 +92,7 @@ class SerialPortManager(QObject):
             if self._serial and self._serial.is_open:
                 return self._serial.in_waiting
             return 0
+
+
+# Instancia única del gestor de puerto serie para toda la aplicación.
+serial_ports = SerialPortManager()

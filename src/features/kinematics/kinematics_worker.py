@@ -24,7 +24,7 @@ import threading
 import serial
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.services.robot.serial_manager import SerialPortManager
+from src.services.robot.serial_manager import serial_ports
 from src.services.data.utils.conversions import angulos_robotang, robotang_angulos
 from src.services.robot.robot_limits import apply_physical_limits
 
@@ -186,13 +186,13 @@ class KinematicsWorker(QThread):
     # ------------------------------------------------------------------ #
 
     def _open_serial(self, com_port):
-        return SerialPortManager.get_instance().request_access(com_port, "KinematicsWorker")
+        return serial_ports.request_access(com_port, "KinematicsWorker")
 
     def _close_serial(self):
-        SerialPortManager.get_instance().release_access("KinematicsWorker")
+        serial_ports.release_access("KinematicsWorker")
 
     def _enviar_robot(self, q_servos):
-        spm = SerialPortManager.get_instance()
+        spm = serial_ports
         com = self._com_port or spm._com or "COM7"
         if not spm.is_active("KinematicsWorker"):
             try:
@@ -231,7 +231,7 @@ class KinematicsWorker(QThread):
 
         while self._telemetry_running:
             try:
-                spm = SerialPortManager.get_instance()
+                spm = serial_ports
                 if not spm.is_active("KinematicsWorker"):
                     time.sleep(0.1)
                     continue
@@ -536,7 +536,7 @@ class KinematicsWorker(QThread):
         self._pause_event.set() # Desbloquear si estaba pausado
         
         # Interrumpir IO bloqueante
-        ser = SerialPortManager.get_instance().get_serial()
+        ser = serial_ports.get_serial()
         if ser:
             try:
                 ser.cancel_read()
@@ -555,7 +555,7 @@ class KinematicsWorker(QThread):
     def release_and_cleanup(self):
         """Libera el puerto serial, limpia buffers y notifica."""
         # Interrumpir IO bloqueante
-        ser = SerialPortManager.get_instance().get_serial()
+        ser = serial_ports.get_serial()
         if ser:
             try:
                 ser.cancel_read()
@@ -613,7 +613,7 @@ class KinematicsWorker(QThread):
     # ------------------------------------------------------------------ #
 
     def run(self):
-        ser = SerialPortManager.get_instance().get_serial()
+        ser = serial_ports.get_serial()
         if ser is None or not ser.is_open:
             if not self._com_port:
                 return
@@ -641,7 +641,7 @@ class KinematicsWorker(QThread):
                 
             home_pos = [0, -45, 120, 0, 30, angulo_garra]
             
-            ser = SerialPortManager.get_instance().get_serial()
+            ser = serial_ports.get_serial()
             print(f"[DEBUG] _serial: {ser}, is_open: {ser.is_open if ser else 'N/A'}")
             
             servo_positions = angulos_robotang(*home_pos)

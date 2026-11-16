@@ -24,7 +24,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, QThreadPool, pyqtSlot, QRunnable
 from src.services.vision import (
     ChArUcoDetection, CameraConnection, PoseEstimation, DetectionDrawer)
 from src.services.vision.circle_detection import run_circle_detection
-from src.services.data.timers import FrameCounter
+from src.services.data.timers import frame_counter
 
 
 class CameraWorker(QThread):
@@ -91,7 +91,7 @@ class CameraWorker(QThread):
         self._search_state = tuple(search_state)
         self._view_state = tuple(view_state)
 
-        self.frame_counter = FrameCounter.get_instance()
+        self.frame_counter = frame_counter
         self.frame_counter.process_frame_signal.connect(self._on_process_frame)
         self.pick_place_active = False
         self.latest_circles = {}

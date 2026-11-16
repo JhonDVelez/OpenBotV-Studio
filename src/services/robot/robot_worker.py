@@ -18,7 +18,7 @@ import serial
 import threading
 import traceback
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.services.robot.serial_manager import SerialPortManager
+from src.services.robot.serial_manager import serial_ports
 
 class RobotWorker(QThread):
     """
@@ -54,7 +54,7 @@ class RobotWorker(QThread):
         self._pause_event.set()
 
         # Intentar abrir el puerto serial mediante SerialPortManager
-        if SerialPortManager.get_instance().request_access(self._com, "RobotWorker"):
+        if serial_ports.request_access(self._com, "RobotWorker"):
             self.connection_status_changed.emit(True)
         else:
             print(f"No se pudo abrir {self._com}")
@@ -82,7 +82,7 @@ class RobotWorker(QThread):
         Returns:
             bool: True si esta conectado.
         """
-        cm904 = SerialPortManager.get_instance().get_serial()
+        cm904 = serial_ports.get_serial()
         return cm904 is not None and getattr(cm904, 'is_open', False)
 
     def get_last_positions(self) -> list:
@@ -158,7 +158,7 @@ class RobotWorker(QThread):
                 print("Error de envío de datos: Valores fuera de rango")
                 return
 
-            spm = SerialPortManager.get_instance()
+            spm = serial_ports
             
             # Reconexión automática si el puerto se cerró (excepto durante suspensión)
             # Solo reconectar si RobotWorker es el trabajador activo
@@ -240,7 +240,7 @@ class RobotWorker(QThread):
         """
         Lee una linea del puerto serial, parsea y filtra la telemetria.
         """
-        spm = SerialPortManager.get_instance()
+        spm = serial_ports
         try:
             waiting = spm.get_in_waiting()
         except Exception:
@@ -315,7 +315,7 @@ class RobotWorker(QThread):
         self._suspended = True
         
         # Interrumpir IO bloqueante inmediatamente
-        cm904 = SerialPortManager.get_instance().get_serial()
+        cm904 = serial_ports.get_serial()
         if cm904:
             try:
                 cm904.cancel_read()
@@ -342,7 +342,7 @@ class RobotWorker(QThread):
     def release_and_cleanup(self):
         """Libera el puerto serial, limpia buffers y notifica."""
         self._suspended = True
-        SerialPortManager.get_instance().release_access("RobotWorker")
+        serial_ports.release_access("RobotWorker")
         self.port_released.emit()
 
     def resume_serial(self):
@@ -352,9 +352,9 @@ class RobotWorker(QThread):
         print(f"[DEBUG] Resuming serial for {self._com}, was suspended: {self._suspended}")
         self._suspended = False
         try:
-            cm904 = SerialPortManager.get_instance().get_serial()
+            cm904 = serial_ports.get_serial()
             if cm904 is None or not getattr(cm904, 'is_open', False):
-                SerialPortManager.get_instance().request_access(self._com, "RobotWorker")
+                serial_ports.request_access(self._com, "RobotWorker")
                 self.connection_status_changed.emit(True)
                 print(f"[DEBUG] Serial re-opened successfully")
         except Exception as e:

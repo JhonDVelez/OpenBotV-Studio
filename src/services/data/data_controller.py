@@ -16,7 +16,7 @@ from PyQt6.QtCore import QObject, pyqtSlot
 from src.services.data import config_manager
 from src.services.data.signals import bus
 from src.services.data.enums import Modes, Units
-from src.services.data.timers import GlobalTimer
+from src.services.data.timers import global_timer
 from src.services.data.utils import deg_to_rad, rad_to_deg, angulos_robotang, robotang_angulos
 
 
@@ -62,7 +62,7 @@ class DataController(QObject):
         self._setup_global_connections()
 
         # Temporizador de sincronización centralizado
-        self._sync_timer = GlobalTimer.get_instance()
+        self._sync_timer = global_timer
         self._sync_timer.start()
         self._sync_timer.sync_robot_tick.connect(self._handle_sync_tick)
 

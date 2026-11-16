@@ -66,7 +66,7 @@ from PyQt6.QtWidgets import QApplication, QWidget
 from PyQt6.QtQuick import QQuickView
 from qdarktheme.qtpy.QtWidgets import QSplashScreen
 from src.main_window import MainWindow
-from src.services.ui.notification_manager import NotificationManager
+from src.services.ui.notification_manager import notification_manager
 from src.services.data.enums.types import NotificationType
 
 
@@ -112,7 +112,7 @@ class CompletePreloader:
         self.box_collision_path = box_c_path
         self.col_id = None
         self.vis_id = None
-        self.noti_manager = NotificationManager.get_instance()
+        self.noti_manager = notification_manager
 
     def create_parent_widget(self) -> bool:
         """

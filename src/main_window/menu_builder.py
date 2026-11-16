@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 from serial.tools import list_ports
 
 from src.services.data.signals import bus
-from src.services.data.timers import FrameCounter
+from src.services.data.timers import frame_counter
 from src.services.ui import window_chrome
 
 
@@ -297,7 +297,7 @@ def apply_camera_interval(interval):
     Args:
         interval (int): Nuevo intervalo en ticks de frame.
     """
-    FrameCounter().get_instance().set_interval(interval)
+    frame_counter.set_interval(interval)
 
 
 def handle_sphere_size(window, size):

@@ -1,9 +1,9 @@
 """
 Módulo que define el contador de fotogramas para control de cadencia.
 
-Proporciona un singleton que cuenta los frames entrantes y emite una
-señal de procesamiento cada N frames, permitiendo reducir la carga
-computacional del pipeline de visión.
+Proporciona una instancia de módulo (``frame_counter``) que cuenta los
+frames entrantes y emite una señal de procesamiento cada N frames,
+permitiendo reducir la carga computacional del pipeline de visión.
 """
 
 import threading
@@ -24,30 +24,12 @@ class FrameCounter(QObject):
     """
     process_frame_signal = pyqtSignal()
 
-    _instance = None
-    _initialized = False
-
-    @classmethod
-    def get_instance(cls):
-        """
-        Obtiene la instancia única del contador (Singleton).
-
-        Returns:
-            FrameCounter: Instancia única.
-        """
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-
     def __init__(self):
-        if FrameCounter._initialized:
-            return
         super().__init__()
         self._interval = bus.cfg_get_param(
             "settings.json", "camera", "view", "interval", default=4)
         self._counter = 0
         self._lock = threading.Lock()
-        FrameCounter._initialized = True
 
     def tick(self):
         """
@@ -79,4 +61,8 @@ class FrameCounter(QObject):
             self._interval = int(interval)
             self._counter = 0
             bus.cfg_request_change("settings.json", ["camera", "view",
-                                                                                "interval"], self._interval)
+                                                "interval"], self._interval)
+
+
+# Instancia única del contador para toda la aplicación.
+frame_counter = FrameCounter()

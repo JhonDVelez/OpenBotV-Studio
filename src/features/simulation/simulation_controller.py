@@ -15,9 +15,9 @@ from PyQt6.QtCore import pyqtSlot, QObject
 from src.services.simulation import PhysicsWorker
 from src.services.data.signals import bus
 from src.services.data.signals import bus
-from src.services.data.timers import GlobalTimer
+from src.services.data.timers import global_timer
 from src.services.data.enums import Modes
-from src.services.ui.notification_manager import NotificationManager
+from src.services.ui.notification_manager import notification_manager
 from src.services.data.enums.types import NotificationType
 from src.features.simulation.simulation_worker import SimulationWorker
 from src.features.simulation.simulation_widget import SimulationWidget
@@ -70,7 +70,8 @@ class SimulationController(QObject):
             bus.sim_sensor_position_signal.emit)
 
         # Orquestación de Timers para el worker
-        self.global_timer = GlobalTimer.get_instance()
+        self.global_timer = global_timer
+        self.global_timer.start()
         self.global_timer.update_tick.connect(
             self.physics_worker.update_simulation)
         self.global_timer.model_tick.connect(
@@ -133,7 +134,7 @@ class SimulationController(QObject):
         bus.sim_stop_simulation.connect(
             self.stop_simulation)
 
-        self.noti_manager = NotificationManager.get_instance()
+        self.noti_manager = notification_manager
 
     def init_pybullet_processing(self, root_object):
         """

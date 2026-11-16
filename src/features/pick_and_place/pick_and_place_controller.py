@@ -18,7 +18,7 @@ from src.services.data.signals import bus
 from src.features.pick_and_place.pick_and_place_widget import PickAndPlaceWidget
 from src.features.pick_and_place.pick_and_place_worker import PickAndPlaceWorker
 from src.services.data.enums import Modes
-from src.services.ui.notification_manager import NotificationManager
+from src.services.ui.notification_manager import notification_manager
 from src.services.data.enums.types import NotificationType
 
 
@@ -99,7 +99,7 @@ class PickAndPlaceController(QObject):
         self.graph_controller = graph_controller
         self._create_worker()
         self._setup_connections()
-        self.noti_manager = NotificationManager.get_instance()
+        self.noti_manager = notification_manager
 
     def _setup_connections(self):
         """        Configura conexiones entre señales globales, worker y overlay."""

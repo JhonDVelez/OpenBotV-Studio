@@ -18,7 +18,7 @@ from src.features.camera.camera_worker import CameraWorker
 from src.features.color.color_worker import ColorWorker
 from src.features.color.color_widget import ColorWidget
 from src.services.data.signals import bus
-from src.services.ui.notification_manager import NotificationManager
+from src.services.ui.notification_manager import notification_manager
 from src.services.data.enums.types import NotificationType
 
 
@@ -57,7 +57,7 @@ class ColorController(QObject):
         # 4. Configurar conexiones reactivas
         self.__setup_connections()
 
-        self.noti_manager = NotificationManager.get_instance()
+        self.noti_manager = notification_manager
 
     def _load_config(self) -> None:
         """

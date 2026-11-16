@@ -14,7 +14,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, QTimer
 from src.features.pick_and_place.pick_place_states import PickPlaceState
 from src.features.pick_and_place.pick_place_state_machine import PickPlaceStateMachine
 from src.features.pick_and_place.logic.context import PickPlaceContext
-from src.services.robot.serial_manager import SerialPortManager
+from src.services.robot.serial_manager import serial_ports
 from src.services.data.utils.conversions import angulos_robotang, robotang_angulos
 from src.services.robot.robot_limits import apply_physical_limits
 
@@ -133,7 +133,7 @@ class PickAndPlaceWorker(QThread):
         self._pid_abort = True
         self._pause_event.set()
         
-        ser = SerialPortManager.get_instance().get_serial() # o acceso propio
+        ser = serial_ports.get_serial() # o acceso propio
         if ser:
             try:
                 ser.cancel_read()
@@ -150,7 +150,7 @@ class PickAndPlaceWorker(QThread):
 
     def release_and_cleanup(self):
         """Libera el puerto serial, limpia buffers y notifica."""
-        SerialPortManager.get_instance().release_access("PickAndPlaceWorker")
+        serial_ports.release_access("PickAndPlaceWorker")
         self.port_released.emit()
 
     def set_com_port(self, com_port):
@@ -209,13 +209,13 @@ class PickAndPlaceWorker(QThread):
     # ------------------------------------------------------------------ #
 
     def _open_serial(self, com_port):
-        return SerialPortManager.get_instance().request_access(com_port, "PickAndPlaceWorker")
+        return serial_ports.request_access(com_port, "PickAndPlaceWorker")
 
     def _close_serial(self):
-        SerialPortManager.get_instance().release_access("PickAndPlaceWorker")
+        serial_ports.release_access("PickAndPlaceWorker")
 
     def _enviar_robot(self, q_servos):
-        spm = SerialPortManager.get_instance()
+        spm = serial_ports
         com = self._com_port or spm._com or "COM7"
         if not spm.is_active("PickAndPlaceWorker"):
             try:
@@ -251,7 +251,7 @@ class PickAndPlaceWorker(QThread):
 
         while self._telemetry_running:
             try:
-                spm = SerialPortManager.get_instance()
+                spm = serial_ports
                 if not spm.is_active("PickAndPlaceWorker"):
                     time.sleep(0.1)
                     continue
@@ -505,7 +505,7 @@ class PickAndPlaceWorker(QThread):
             self.actualizar_grafica(target_xyz.tolist(), pos_actual_xyz.tolist())
 
     def run(self):
-        ser = SerialPortManager.get_instance().get_serial()
+        ser = serial_ports.get_serial()
         if ser is None or not ser.is_open:
             if not self._com_port:
                 return

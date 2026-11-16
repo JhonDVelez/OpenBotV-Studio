@@ -25,7 +25,7 @@ from src.services.devices.device_monitor import get_device_monitor
 from src.services.data.signals import bus
 from src.services.styling import ThemeManager
 from src.services.data import config_manager, DataController
-from src.services.ui.notification_manager import NotificationManager
+from src.services.ui.notification_manager import notification_manager
 from src.services.data.enums.types import NotificationType
 
 
@@ -189,8 +189,7 @@ class MainWindow(FramelessMainWindow):
             self.resize(w, h)
             layout_builder.center_window(self)
 
-        noti_manager = NotificationManager.get_instance()
-        noti_manager.set_main_window(self)
+        notification_manager.set_main_window(self)
 
     def _on_external_theme_changed(self, is_dark: bool):
         """

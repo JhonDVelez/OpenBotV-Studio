@@ -11,8 +11,8 @@ menú/toolbar con estos manejadores.
 
 from src.services.data.enums.types import Modes, NotificationType
 from src.services.data.signals import bus
-from src.services.robot.serial_manager import SerialPortManager
-from src.services.ui.notification_manager import NotificationManager
+from src.services.robot.serial_manager import serial_ports
+from src.services.ui.notification_manager import notification_manager
 
 
 # ---------------------------------------------------------------------------
@@ -330,10 +330,10 @@ def toggle_sliders_controls(window, checked: bool):
         # Reseteamos otros modos antes de activar sliders
         if hasattr(window, 'kinematics_controller') and window.kinematics_controller:
             window.kinematics_controller.exit_kinematics_mode()
-            SerialPortManager.get_instance().release_access("KinematicsWorker")
+            serial_ports.release_access("KinematicsWorker")
         if hasattr(window, 'pick_and_place_controller') and window.pick_and_place_controller:
             window.pick_and_place_controller.stop_and_reset()
-            SerialPortManager.get_instance().release_access("PickAndPlaceWorker")
+            serial_ports.release_access("PickAndPlaceWorker")
 
         # Reanudar RobotWorker si está conectado
         if window.connected_to_robot and hasattr(window, 'robot_service'):
@@ -376,8 +376,8 @@ def toggle_kinematics_controls(window, checked: bool):
     if checked:
         # Reseteamos otros modos antes de activar cinemática
         perform_system_reset(window)
-        SerialPortManager.get_instance().release_access("RobotWorker")
-        SerialPortManager.get_instance().release_access("PickAndPlaceWorker")
+        serial_ports.release_access("RobotWorker")
+        serial_ports.release_access("PickAndPlaceWorker")
 
         window.kinematics_controller.get_widget().show()
         window.kinematics_controller.enter_kinematics_mode()
@@ -386,7 +386,7 @@ def toggle_kinematics_controls(window, checked: bool):
     else:
         window.kinematics_controller.get_widget().hide()
         window.kinematics_controller.exit_kinematics_mode()
-        SerialPortManager.get_instance().release_access("KinematicsWorker")
+        serial_ports.release_access("KinematicsWorker")
     bus.cfg_request_change(
         'settings.json', ["mode", 'kinematics'], checked)
 
@@ -399,7 +399,7 @@ def toggle_pick_place_controls(window, checked: bool):
         checked (bool): True para mostrar el panel de controles.
     """
     if checked and not window.connected_to_robot:
-        NotificationManager.get_instance().notify(
+        notification_manager.notify(
             "Para usar el modo Pick and Place debe conectar el robot previamente desde el menú Robot > Puerto.",
             NotificationType.DIALOG_WARNING
         )
@@ -408,13 +408,13 @@ def toggle_pick_place_controls(window, checked: bool):
     if checked:
         # Reseteamos otros modos antes de activar pick and place
         perform_system_reset(window)
-        SerialPortManager.get_instance().release_access("RobotWorker")
-        SerialPortManager.get_instance().release_access("KinematicsWorker")
+        serial_ports.release_access("RobotWorker")
+        serial_ports.release_access("KinematicsWorker")
 
     bus.pp_set_state(checked)
 
     if not checked:
-        SerialPortManager.get_instance().release_access("PickAndPlaceWorker")
+        serial_ports.release_access("PickAndPlaceWorker")
 
     # Ya no forzamos la ocultación del panel de controles aquí.
     # El controlador P&P se encarga de ajustar el contenido (PID only).

@@ -5,7 +5,7 @@ comportamiento previo, verificado primero por caracterización):
 - PickPlaceContext: dataclass de estado (defaults y reset)
 - apply_physical_limits: función plana en robot_limits.py
 - run_circle_detection: función plana de detección de esferas
-- servo_helpers: relative_to_servo / with_gripper (vía PickExecutor)
+- Código muerto eliminado (base_executor, servo_helpers, executores)
 
 Convenciones: Qt corre offscreen (ver tests/conftest.py).
 """
@@ -17,8 +17,6 @@ import cv2
 import pytest
 
 from src.features.pick_and_place.logic.context import PickPlaceContext
-from src.features.pick_and_place.logic.pick_executor import PickExecutor
-from src.services.robot import robot_limits
 from src.services.robot.robot_limits import apply_physical_limits
 from src.services.data.utils.conversions import (
     angulos_robotang, robotang_angulos)
@@ -87,10 +85,6 @@ class TestPickPlaceContext:
 # ---------------------------------------------------------------------------
 
 class TestRobotLimits:
-    def test_compensator_class_is_gone(self):
-        with pytest.raises(ImportError):
-            importlib.import_module("src.services.robot.robot_compensator")
-
     def test_apply_physical_limits_within_limits_unchanged(self):
         q = np.array([0.0, 0.0, 0.0, 0.0])
         result = apply_physical_limits(q)
@@ -122,43 +116,20 @@ class TestRobotLimits:
 
 
 # ---------------------------------------------------------------------------
-# Servo helpers (ex BaseExecutor) vía PickExecutor
+# Código muerto eliminado en Fase 3/Fase 4
 # ---------------------------------------------------------------------------
 
-class _DummyWorker:
-    pass
-
-
-class TestServoHelpers:
-    def test_relative_to_servo(self):
-        executor = PickExecutor(_DummyWorker(), PickPlaceContext())
-        assert executor.worker is not None and executor.context is not None
-        from src.features.pick_and_place.logic.servo_helpers import (
-            relative_to_servo, with_gripper)
-
-        assert relative_to_servo([0, 0, 0, 0, 90, 0]) == [
-            150.0, 150.0, 150.0, 150.0, 240.0, 150.0]
-        assert all(isinstance(v, float) for v in
-                   relative_to_servo([0, 0, 0, 0, 90, 0]))
-
-    def test_with_gripper(self):
-        from src.features.pick_and_place.logic.servo_helpers import (
-            with_gripper)
-
-        original = [1, 2, 3, 4, 5, 6]
-        result = with_gripper(original, -112.0)
-        assert result == [1, 2, 3, 4, 5, 38.0]
-        assert result[-1] == float(-112.0 + 150.0)
-        # original no mutado
-        assert original == [1, 2, 3, 4, 5, 6]
-
-    def test_base_executor_is_gone(self):
+class TestDeadCodeRemoved:
+    @pytest.mark.parametrize("module_name", [
+        "src.services.robot.robot_compensator",
+        "src.features.pick_and_place.logic.base_executor",
+        "src.features.pick_and_place.logic.servo_helpers",
+        "src.features.pick_and_place.logic.pick_executor",
+        "src.features.pick_and_place.logic.place_executor",
+    ])
+    def test_removed_modules_are_gone(self, module_name):
         with pytest.raises(ImportError):
-            importlib.import_module(
-                "src.features.pick_and_place.logic.base_executor")
-
-    def test_executors_do_not_inherit_base_class(self):
-        assert PickExecutor.__bases__ == (object,)
+            importlib.import_module(module_name)
 
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,10 @@
 """
 Módulo de gestión centralizada de notificaciones.
 
-Proporciona NotificationManager, un singleton que unifica la presentación
-de mensajes al usuario mediante ToastLabels transitorios o QMessageBox
-modales, segun el NotificationType especificado.
+Proporciona NotificationManager y su instancia de módulo
+(``notification_manager``), que unifica la presentación de mensajes al
+usuario mediante ToastLabels transitorios o QMessageBox modales, segun
+el NotificationType especificado.
 """
 
 from typing import TYPE_CHECKING
@@ -25,18 +26,16 @@ class NotificationManager:
     Mantiene referencia a la ventana principal para posicionar toasts.
 
     Example:
-        manager = NotificationManager.get_instance()
-        manager.set_main_window(self)
+        from src.services.ui.notification_manager import notification_manager
+
+        notification_manager.set_main_window(self)
 
         # Toast transitorio
-        manager.notify("Camara iniciada", NotificationType.TOAST_SUCCESS)
+        notification_manager.notify("Camara iniciada", NotificationType.TOAST_SUCCESS)
 
         # Diálogo modal
-        manager.notify("Desea continuar?", NotificationType.DIALOG_QUESTION)
+        notification_manager.notify("Desea continuar?", NotificationType.DIALOG_QUESTION)
     """
-
-    _instance = None
-    _main_window: "QWidget | None" = None
 
     # Estilos de toast por tipo
     _TOAST_STYLES = {
@@ -47,19 +46,8 @@ class NotificationManager:
     }
 
     def __init__(self):
-        if NotificationManager._instance is not None:
-            raise RuntimeError(
-                "NotificationManager es un singleton. "
-                "Use get_instance() en lugar de instanciar directamente."
-            )
+        self._main_window: "QWidget | None" = None
         self._toast_label = None
-
-    @staticmethod
-    def get_instance() -> "NotificationManager":
-        """Retorna la instancia única del gestor."""
-        if NotificationManager._instance is None:
-            NotificationManager._instance = NotificationManager()
-        return NotificationManager._instance
 
     def set_main_window(self, window: "QWidget") -> None:
         """Establece la referencia a la ventana principal."""
@@ -148,3 +136,7 @@ class NotificationManager:
         msg_box.setWindowModality(Qt.WindowModality.ApplicationModal)
 
         return msg_box.exec()
+
+
+# Instancia única del gestor de notificaciones para toda la aplicación.
+notification_manager = NotificationManager()
