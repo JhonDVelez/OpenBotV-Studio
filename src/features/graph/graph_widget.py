@@ -169,7 +169,7 @@ class GraphWidget(QWidget):
         Reemplaza el contenido del layout cartesiano con un widget embebido.
 
         Limpia el layout actual (removiendo plots PyQtGraph anteriores)
-        y agrega el widget de matplotlib para el PID cartesiano.
+        y agrega el widget de pyqtgraph para el PID cartesiano.
 
         Args:
             widget (QWidget): Widget CartesianPIDPlot a insertar.

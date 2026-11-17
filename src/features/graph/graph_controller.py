@@ -51,7 +51,7 @@ class GraphController(QObject):
         self._angular_plots = []
         self._setup_plots()
 
-        # 4. Grafico Cartesiano PID (matplotlib)
+        # 4. Grafico Cartesiano PID (pyqtgraph)
         self._kinematics_service = kinematics_worker
         self._cartesian_pid_plot = CartesianPIDPlot()
         self._widget.set_cartesian_pid_widget(self._cartesian_pid_plot)
