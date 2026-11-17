@@ -46,6 +46,13 @@ class SimulationWorker(QObject):
             "z",
             "x"
         ]
+
+        # Los nodos QML no cambian tras la carga: resolver una sola vez
+        # evita recorrer el árbol QML en cada fotograma.
+        self._motors = [
+            self.root_object.findChild(QObject, name)
+            for name in self.joint_names
+        ]
         self.colors = {
             "amarillo":  ["sphereYellowPos", "sphereYellowRot"],
             "verde": ["sphereGreenPos", "sphereGreenRot"],
@@ -95,17 +102,17 @@ class SimulationWorker(QObject):
             if i < len(pos_copy):
                 pos_copy[i] *= -1
 
-        for motor_name, angle, direction in zip(self.joint_names,
-                                                pos_copy,
-                                                self.direction_rotation):
-            motor = self.root_object.findChild(QObject, motor_name)
-            if motor is not None:
-                if direction == "z":
-                    motor.setProperty("eulerRotation", QVector3D(0, 0, angle))
-                elif direction == "y":
-                    motor.setProperty("eulerRotation", QVector3D(0, angle, 0))
-                elif direction == "x":
-                    motor.setProperty("eulerRotation", QVector3D(angle, 0, 0))
+        for motor, angle, direction in zip(self._motors,
+                                           pos_copy,
+                                           self.direction_rotation):
+            if motor is None:
+                continue
+            if direction == "z":
+                motor.setProperty("eulerRotation", QVector3D(0, 0, angle))
+            elif direction == "y":
+                motor.setProperty("eulerRotation", QVector3D(0, angle, 0))
+            elif direction == "x":
+                motor.setProperty("eulerRotation", QVector3D(angle, 0, 0))
 
     @pyqtSlot(float)
     def update_sphere_radius(self, radius):
