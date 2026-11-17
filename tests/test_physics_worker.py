@@ -7,17 +7,25 @@ pasos (10 Hz). RobotArmPhysics se sustituye por un fake para no cargar
 el motor de física real.
 """
 
+import time
+
 import pytest
 
 import src.services.simulation.physics_worker as pw
 
 
 class FakePhysics:
-    """Doble de RobotArmPhysics: registra llamadas y devuelve pose fija."""
+    """Doble fiel de RobotArmPhysics: registra llamadas y devuelve pose fija.
+
+    Replica la mutación in-place del método real (physics_pybullet.py:128:
+    niega los índices 4 y 5 del argumento recibido) y en cada paso la pose
+    persigue el último comando a velocidad limitada, como la planta real.
+    """
 
     def __init__(self):
         self.joint_indices = list(range(6))
         self.pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self._command = None
         self.set_calls = []
         self.step_count = 0
         self.released = False
@@ -28,12 +36,17 @@ class FakePhysics:
 
     def set_joint_positions(self, positions, max_velocity=1.2):
         self.set_calls.append(list(positions))
+        positions[-2:] = [-x for x in positions[-2:]]
+        self._command = positions
 
     def get_joint_positions(self):
         return list(self.pose)
 
     def step_simulation(self):
         self.step_count += 1
+        if self._command is not None:
+            for i, (p, c) in enumerate(zip(self.pose, self._command)):
+                self.pose[i] = p + max(-0.01, min(0.01, c - p))
 
     def has_released_spheres(self):
         return self.released
@@ -136,3 +149,69 @@ def test_esfera_liberada_avanza_fisica_con_brazo_quieto(qapp, fake_physics):
     w._drain_commands()
     w._step()
     assert fake_physics.step_count == 1
+
+
+def test_reenvio_del_mismo_objetivo_no_doble_niega(qapp, fake_physics):
+    w = pw.PhysicsWorker("robot")
+
+    w.update_target(TARGET)
+    w._drain_commands()
+    w._step()
+    w._step()  # reenvío del mismo objetivo ya aplicado
+
+    # El objetivo canónico no se corrompe (el fake niega in-place su
+    # argumento: si el worker pasara su lista por referencia, se detectaría)
+    # y solo se aplica una vez.
+    assert w.target_position == TARGET
+    assert len(fake_physics.set_calls) == 1
+
+
+def test_paso_quieto_con_muneca_negada_no_avanza(qapp, fake_physics):
+    # En espacio PyBullet la muñeca (índices 4 y 5) queda negada respecto
+    # al objetivo canónico: un brazo en reposo ahí no debe pisar el
+    # acelerador (is_moving compara contra lo realmente aplicado).
+    w = pw.PhysicsWorker("robot")
+    fake_physics.pose = [0.1, 0.2, 0.3, 0.4, -0.5, -0.6]
+    w.update_target(TARGET)
+    w._drain_commands()
+    w._step()
+    assert fake_physics.step_count == 0
+
+
+def test_abouttoquit_detiene_el_hilo(qapp, fake_physics):
+    w = pw.PhysicsWorker("robot")
+    w.start()
+    try:
+        deadline = time.monotonic() + 5
+        while w._tick == 0 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert w._tick > 0, "el bucle nunca arrancó"
+
+        qapp.aboutToQuit.emit()
+        assert not w.isRunning()
+    finally:
+        w.stop()
+
+
+def test_error_en_el_paso_estaciona_el_bucle(qapp, fake_physics):
+    w = pw.PhysicsWorker("robot")
+    llamadas = []
+
+    def paso_roto():
+        llamadas.append(1)
+        raise RuntimeError("fallo simulado")
+
+    w._step = paso_roto
+    w.start()
+    try:
+        deadline = time.monotonic() + 5
+        while not llamadas and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert llamadas, "el paso nunca se ejecutó"
+
+        time.sleep(0.3)  # margen para que un hilo sin manejo muera ya
+        assert w.isRunning(), "la excepción mató el hilo (debe estacionarse)"
+        assert w._running is False
+    finally:
+        w.stop()
+    assert not w.isRunning()

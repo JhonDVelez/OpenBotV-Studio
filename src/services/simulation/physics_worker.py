@@ -19,8 +19,10 @@ Conexiones:
 
 import queue
 import time
+import traceback
 
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import QApplication
 from src.services.simulation.physics_pybullet import RobotArmPhysics
 
 
@@ -60,6 +62,15 @@ class PhysicsWorker(QThread):
         self._quit = False
         self._tick = 0
         self._last_pose = None
+        # Último objetivo realmente aplicado, en espacio PyBullet
+        # (índices 4 y 5 negados): la pose leída se compara contra esto.
+        self._applied = [0.0] * 6
+
+        # El hilo es dueño de su muerte: cualquier salida por el event loop
+        # de Qt lo detiene aunque nadie llame a closeEvent.
+        app = QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.stop)
 
     def set_max_velocity(self, max_vel):
         """Define la velocidad máxima de los motores en la simulación.
@@ -111,12 +122,19 @@ class PhysicsWorker(QThread):
         dt = 1.0 / self.STEP_HZ
         next_t = time.perf_counter() + dt
         while not self._quit:
-            self._drain_commands()
-            if not self._running:
-                time.sleep(self.PAUSE_SLEEP_S)
-                next_t = time.perf_counter() + dt
+            try:
+                self._drain_commands()
+                if not self._running:
+                    time.sleep(self.PAUSE_SLEEP_S)
+                    next_t = time.perf_counter() + dt
+                    continue
+                self._step()
+            except Exception:
+                # Un fallo no debe matar el hilo en silencio: se registra
+                # y el bucle queda estacionado; stop() sigue funcionando.
+                traceback.print_exc()
+                self._running = False
                 continue
-            self._step()
             delay = next_t - time.perf_counter()
             if delay > 0:
                 time.sleep(delay)
@@ -154,12 +172,16 @@ class PhysicsWorker(QThread):
         if len(self.target_position) == len(self.physic.joint_indices):
             if not all(x == y for x, y in zip(self.target_position, self.target_position_prev)):
                 # Copia: set_joint_positions niega in-place los índices 4 y 5.
-                self.physic.set_joint_positions(
-                    list(self.target_position), self.max_velocity)
+                aplicado = list(self.target_position)
+                self.physic.set_joint_positions(aplicado, self.max_velocity)
+                self._applied = aplicado
+                # Guardar el objetivo en espacio PyBullet (ya negado por la
+                # mutación in-place) para comparar la pose leída contra él.
+                self._applied = aplicado
                 self.target_position_prev = list(self.target_position)
             is_moving = any(
-                abs(x - y) >= 0.000001
-                for x, y in zip(self.target_position, pose)
+                abs(x - y) >= 0.001
+                for x, y in zip(self._applied, pose)
             )
             if is_moving or self.physic.has_released_spheres():
                 self.physic.step_simulation()
