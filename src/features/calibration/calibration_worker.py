@@ -201,8 +201,8 @@ class CalibrationWorker(QObject):
             self.reset_data()
 
         except (cv2.error, ValueError, np.linalg.LinAlgError) as e:
-            print(
-                f"[DEBUG] Error en calibración de cámara ({type(e).__name__}): {e}")
+            # print(
+            #     f"[DEBUG] Error en calibración de cámara ({type(e).__name__}): {e}")
             self.error_occurred.emit(
                 f"Error en calibración: {type(e).__name__}: {str(e)}")
 

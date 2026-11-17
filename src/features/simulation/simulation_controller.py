@@ -79,7 +79,7 @@ class SimulationController(QObject):
 
         # Gestion de prioridad de modo
         self._active_source = Modes.SLIDERS
-        
+
         bus.sld_change_mode_signal.connect(
             lambda mode: self._set_active_source(Modes.SLIDERS))
         bus.kin_change_mode_signal.connect(
@@ -211,16 +211,16 @@ class SimulationController(QObject):
                         self._root_object.setProperty(qml_prop, value)
 
     def _set_active_source(self, mode):
-        #rint(f"[DEBUG SimulationController] _set_active_source called with mode: {mode}")
+        # rint(f"[DEBUG SimulationController] _set_active_source called with mode: {mode}")
         self._active_source = mode
         if self.simulation_worker:
             self.simulation_worker._pending_positions = None
 
     @pyqtSlot(list)
     def _update_from_sliders(self, joint_positions: list):
-        #print(f"[DEBUG SimulationController] _update_from_sliders: active_source={self._active_source}, positions={joint_positions}")
+        # print(f"[DEBUG SimulationController] _update_from_sliders: active_source={self._active_source}, positions={joint_positions}")
         if self._active_source != Modes.SLIDERS:
-            print(f"[DEBUG SimulationController] BLOCKED sliders update because active_source is {self._active_source}")
+            # print(f"[DEBUG SimulationController] BLOCKED sliders update because active_source is {self._active_source}")
             return
         self.update_simulation(joint_positions)
 
@@ -285,7 +285,7 @@ class SimulationController(QObject):
             self.physics_worker.start()
             bus.sim_set_running(True)
         except RuntimeError as e:
-            print(f"[DEBUG] RuntimeError iniciando simulación: {e}")
+            # print(f"[DEBUG] RuntimeError iniciando simulación: {e}")
             self.noti_manager.notify(
                 f"Error iniciando simulación: {e}", NotificationType.TOAST_ERROR)
 
@@ -337,5 +337,6 @@ class SimulationController(QObject):
                     self.simulation_worker.quit()
                     self.simulation_worker.wait(2000)
             except RuntimeError as e:
-                print(f"[DEBUG] RuntimeError cerrando worker de simulación: {e}")
+                print(
+                    f"[DEBUG] RuntimeError cerrando worker de simulación: {e}")
             self.simulation_worker = None

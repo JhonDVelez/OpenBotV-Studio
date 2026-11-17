@@ -358,8 +358,11 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     app.setStyle('fusion')
-    from src.services.data.utils.widget_inspector import install_widget_inspector
-    install_widget_inspector(app)
+
+    # Añade el inspector de tamaños de widgets para depuración
+    # from src.services.data.utils.widget_inspector import install_widget_inspector
+    # install_widget_inspector(app)
+    
     src_path = resource_base()
 
     QDir.addSearchPath(

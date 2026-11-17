@@ -400,9 +400,9 @@ class ControlWorkerBase(QThread):
         if not serial_ports.is_active(self._owner_id):
             try:
                 serial_ports.request_access(com, self._owner_id)
-            except Exception as e:
-                print(f"[DEBUG] [{self._owner_id}] Error solicitando acceso "
-                      f"a {com}: {e}")
+            except Exception:
+                # print(f"[DEBUG] [{self._owner_id}] Error solicitando acceso "
+                #       f"a {com}: {e}")
                 return
 
         ser = serial_ports.get_serial()
@@ -410,7 +410,8 @@ class ControlWorkerBase(QThread):
             try:
                 serial_ports.request_access(com, self._owner_id)
             except Exception as e:
-                print(f"[DEBUG] [{self._owner_id}] Error reabriendo {com}: {e}")
+                print(
+                    f"[DEBUG] [{self._owner_id}] Error reabriendo {com}: {e}")
 
         if not serial_ports.get_serial() or not serial_ports.get_serial().is_open:
             print("[DEBUG] Serial port not open, cannot send command.")

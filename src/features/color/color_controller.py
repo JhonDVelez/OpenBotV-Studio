@@ -182,8 +182,8 @@ class ColorController(QObject):
             order = ["h_min", "s_min", "v_min", "h_max", "s_max", "v_max"]
             values = [ranges[key] for key in order]
         except (KeyError, AttributeError) as e:
-            print(
-                f"[DEBUG] Error al obtener valores HSV del widget ({type(e).__name__}): {e}")
+            # print(
+            #     f"[DEBUG] Error al obtener valores HSV del widget ({type(e).__name__}): {e}")
             self.noti_manager.notify(
                 f"Error al leer configuración de color: {e}", NotificationType.TOAST_ERROR)
             return

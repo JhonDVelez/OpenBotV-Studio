@@ -259,7 +259,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         nueva_apertura = min(apertura_actual + incremento, apertura_final)
         self._enviar_comando_movimiento(nueva_apertura)
         if nueva_apertura < apertura_final:
-            QTimer.singleShot(self.TIEMPO_PASO_GARRA, lambda: self._ejecutar_paso_apertura(nueva_apertura, apertura_final, incremento))
+            QTimer.singleShot(self.TIEMPO_PASO_GARRA, lambda: self._ejecutar_paso_apertura(
+                nueva_apertura, apertura_final, incremento))
         else:
             self._sm.place_release_done()
 
@@ -291,12 +292,14 @@ class PickAndPlaceWorker(ControlWorkerBase):
 
     def _enter_pid_home(self, angulo_garra_custom=None):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
-        ang_garra = angulo_garra_custom if angulo_garra_custom is not None else self.calcular_angulo_garra(tam + 50)
+        ang_garra = angulo_garra_custom if angulo_garra_custom is not None else self.calcular_angulo_garra(
+            tam + 50)
         self.update_gains_from_panel()
         tx, ty, tz = 185, 0, 170
         tz = self.corregir_z(tx, ty, tz)
         tx, ty = self.corregir_xy(tx, ty)
-        self.execute_pid_only([tx, ty, tz], LIMITES_HOME, angulo_garra=ang_garra)
+        self.execute_pid_only([tx, ty, tz], LIMITES_HOME,
+                              angulo_garra=ang_garra)
 
     def _enter_pick_approach(self):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
@@ -314,7 +317,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         z = self.corregir_z(x1, y1, z)
         x, y = self.corregir_xy(x1, y1)
         # Aproximar primero en Y y Z (retrasado en X)
-        self.execute_pid_only([x-60, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
+        self.execute_pid_only(
+            [x-60, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
 
     def _enter_pick_down(self):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
@@ -331,9 +335,10 @@ class PickAndPlaceWorker(ControlWorkerBase):
         z = tam + 5
         z = self.corregir_z(x1, y1, z)
         x, y = self.corregir_xy(x1, y1)
-        print(f"[DEBUG] Pick Down Target: x={x}, y={y}, z={z}, ang_garra={ang_garra}")
+        # print(f"[DEBUG] Pick Down Target: x={x}, y={y}, z={z}, ang_garra={ang_garra}")
         # Luego aproximar en X a la posición final
-        self.execute_pid_only([x, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
+        self.execute_pid_only([x, y, z], LIMITES_TARGET,
+                              angulo_garra=ang_garra)
 
     def _enter_pick_grasp(self):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
@@ -356,7 +361,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         z = 100
         z = self.corregir_z(x1, y1, z)
         x, y = self.corregir_xy(x1, y1)
-        self.execute_pid_only([x, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
+        self.execute_pid_only([x, y, z], LIMITES_TARGET,
+                              angulo_garra=ang_garra)
 
     def _enter_retract_to_home1_pick(self):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
@@ -367,12 +373,14 @@ class PickAndPlaceWorker(ControlWorkerBase):
 
     def _enter_pid_home_place(self, angulo_garra_custom=None):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
-        ang_garra = angulo_garra_custom if angulo_garra_custom is not None else self.calcular_angulo_garra(tam - 20)
+        ang_garra = angulo_garra_custom if angulo_garra_custom is not None else self.calcular_angulo_garra(
+            tam - 20)
         self.update_gains_from_panel()
         tx, ty, tz = 185, 0, 170
         tz = self.corregir_z(tx, ty, tz)
         tx, ty = self.corregir_xy(tx, ty)
-        self.execute_pid_only([tx, ty, tz], LIMITES_HOME, angulo_garra=ang_garra)
+        self.execute_pid_only([tx, ty, tz], LIMITES_HOME,
+                              angulo_garra=ang_garra)
 
     def _enter_place_approach(self):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
@@ -380,7 +388,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         self.update_gains_from_panel()
         if self.context.place_target_coords is None:
             print("[ERROR] place_target_coords is None in _enter_place_approach")
-            self.sequence_failed.emit('No se ha seleccionado posición de colocación (place)')
+            self.sequence_failed.emit(
+                'No se ha seleccionado posición de colocación (place)')
             self._sm.reset()
             return
         x, y, z = self.context.place_target_coords
@@ -398,7 +407,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         z = desz
         z = self.corregir_z(x1, y1, z)
         x, y = self.corregir_xy(x1, y1)
-        self.execute_pid_only([x-60, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
+        self.execute_pid_only(
+            [x-60, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
 
     def _enter_place_down(self):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
@@ -406,7 +416,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         self.update_gains_from_panel()
         if self.context.place_target_coords is None:
             print("[ERROR] place_target_coords is None in _enter_place_down")
-            self.sequence_failed.emit('No se ha seleccionado posición de colocación (place)')
+            self.sequence_failed.emit(
+                'No se ha seleccionado posición de colocación (place)')
             self._sm.reset()
             return
         x, y, z = self.context.place_target_coords
@@ -414,7 +425,7 @@ class PickAndPlaceWorker(ControlWorkerBase):
         y = float(self.context.place_target_coords['y'])
         z = float(self.context.place_target_coords['z'])
         des = 1 if np.sqrt(x**2 + (y+110)**2) < 190 else 3.0
-        #desz = tam + 10 if np.sqrt(x**2 + (y+110)**2) < 190 else tam*2
+        # desz = tam + 10 if np.sqrt(x**2 + (y+110)**2) < 190 else tam*2
         r = tam + des
         angle = math.atan((x)/(y+110))
         x = x + r*math.sin(1.5708 - angle)
@@ -430,7 +441,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         else:
             y = y
             x = x + 20
-        self.execute_pid_only([x, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
+        self.execute_pid_only([x, y, z], LIMITES_TARGET,
+                              angulo_garra=ang_garra)
 
     def _enter_place_release(self):
         tam = self.context.tamano_seleccionado if self.context.tamano_seleccionado else 30
@@ -444,7 +456,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         self.update_gains_from_panel()
         if self.context.place_target_coords is None:
             print("[ERROR] place_target_coords is None in _enter_place_down")
-            self.sequence_failed.emit('No se ha seleccionado posición de colocación (place)')
+            self.sequence_failed.emit(
+                'No se ha seleccionado posición de colocación (place)')
             self._sm.reset()
             return
         x, y, z = self.context.place_target_coords
@@ -461,7 +474,8 @@ class PickAndPlaceWorker(ControlWorkerBase):
         z = 100
         z = self.corregir_z(x1, y1, z)
         x, y = self.corregir_xy(x1, y1)
-        self.execute_pid_only([x, y, z], LIMITES_TARGET, angulo_garra=ang_garra)
+        self.execute_pid_only([x, y, z], LIMITES_TARGET,
+                              angulo_garra=ang_garra)
 
     def _enter_final_seq_home1(self):
         servos = [0, -90, 130, 0, -30, 0]
