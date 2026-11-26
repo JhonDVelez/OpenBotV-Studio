@@ -75,18 +75,43 @@ repositorio. Hay dos formatos:
 
 ### 1. Preparar el entorno
 
+#### Windows
+
 ```powershell
 conda env create -f environment.yml
 conda activate .venv
 ```
 
+#### Linux
+
+```bash
+conda env create -f environment.yml
+conda activate .venv
+```
+
+Asegúrate de que PyInstaller esté instalado en el mismo entorno:
+
+```bash
+python -m pip install "pyinstaller>=6.22.3"
+```
+
 ### 2. Ejecutar en desarrollo
+
+#### Windows
 
 ```powershell
 python src\main.py
 ```
 
+#### Linux
+
+```bash
+python src/main.py
+```
+
 ### 3. Compilar el ejecutable
+
+#### Windows
 
 El build se automatiza con `installer\build.ps1`, pero también puede hacerse
 manualmente paso a paso:
@@ -107,14 +132,53 @@ El spec (`installer\main.spec`) gestiona todo el empaquetado: recursos
 (`src/resources`), SVGs de los temas, dependencias de QtQuick3D, icono del exe
 y metadatos de versión (`installer\version.py`).
 
-## ⚙️ Uso de `installer\build.ps1`
+#### Linux
 
-Script de automatización que encadena los pasos anteriores con verificación
-de errores. Se ejecuta desde la raíz del proyecto:
+El build Linux se automatiza con `installer/build.sh`:
+
+```bash
+# Ejecución manual paso a paso
+python -m PyInstaller installer/main_linux.spec --noconfirm
+
+# Crear el lanzador y el archivo portable
+./installer/build.sh portable
+
+# Ejecutar todo: PyInstaller + archivo portable
+./installer/build.sh all
+```
+
+El paquete portable se genera en:
+
+```text
+dist/OpenBotV-Studio-portable.tar.gz
+```
+
+Para ejecutar el programa sin instalarlo:
+
+```bash
+tar -xzf dist/OpenBotV-Studio-portable.tar.gz -C dist
+./dist/OpenBotV-Studio/OpenBotV-Studio.sh
+```
+
+El spec (`installer/main_linux.spec`) incluye los recursos de la aplicación,
+los SVGs de los temas y los módulos Qt QML/Quick3D necesarios.
+
+> **Compatibilidad de Linux:** el ejecutable debe compilarse en una distribución
+> objetivo compatible. Por ejemplo, un binario construido en Ubuntu con una
+> glibc reciente puede no ejecutarse en distribuciones más antiguas. Para una
+> versión destinada a varios sistemas, construye el portable dentro de un
+> contenedor o distribución Linux con una glibc equivalente o más antigua que
+> las distribuciones de destino.
+
+## ⚙️ Uso de los scripts de automatización
+
+### Windows: `installer\build.ps1`
+
+Se ejecuta desde la raíz del proyecto:
 
 ```powershell
 .\installer\build.ps1              # muestra el menú interactivo
-.\installer\build.ps1 -Task All    # sin menú: ejecuta los 3 pasos
+.\installer\build.ps1 -Task All    # ejecuta los 3 pasos
 ```
 
 Al abrirlo sin argumentos aparece este menú:
@@ -133,16 +197,40 @@ OpenBotV Studio - Build
 - **[2] Solo Portable**: genera el zip; requiere que exista `dist\`.
 - **[3] Solo Instalador**: genera el Setup con Inno Setup; requiere `dist\`.
 - **[4] Portable + Instalador**: empaqueta lo ya compilado sin recompilar.
-- **[5] Todo**: la secuencia completa de release.
+- **[5] Todo**: ejecuta la secuencia completa de release.
 
-Detalles de comportamiento:
+Si el código de `src\` es más reciente que el exe de `dist\`, el script avisa
+para recompilar antes de empaquetar.
 
-- Si un paso falla, el script se detiene y muestra el error en rojo antes de
-  continuar (evita empaquetar artefactos rotos).
-- Si el código de `src\` es más reciente que el exe de `dist\`, avisa para
-  que recompiles antes de empaquetar.
-- Al finalizar (o tras un error) espera a que presiones una tecla para no
-  cerrar la ventana; usa `-NoPause` para ejecutarlo en automatización.
+### Linux: `installer/build.sh`
+
+Se ejecuta desde la raíz del proyecto:
+
+```bash
+./installer/build.sh            # muestra el menú interactivo
+./installer/build.sh all        # ejecuta PyInstaller y genera el portable
+./installer/build.sh exe        # solo recompila el ejecutable
+./installer/build.sh portable   # solo empaqueta dist/OpenBotV-Studio
+./installer/build.sh -h         # muestra la ayuda
+```
+
+Al abrirlo sin argumentos aparece este menú:
+
+```
+OpenBotV Studio - Build Linux
+  [1] Solo PyInstaller       (regenera dist/OpenBotV-Studio)
+  [2] Solo Portable          (tar.gz de dist/OpenBotV-Studio)
+  [3] Todo                   (1 + 2)
+  [0] Salir
+```
+
+- **[1] Solo PyInstaller**: reconstruye `dist/OpenBotV-Studio/OpenBotV-Studio`.
+- **[2] Solo Portable**: crea el lanzador y genera el `.tar.gz`; requiere que
+  exista el ejecutable compilado.
+- **[3] Todo**: recompila el ejecutable y crea el archivo portable.
+
+Los scripts comprueban errores durante el proceso y no continúan con el
+empaquetado si falla el paso anterior.
 
 ## 🐞 Solución de problemas
 
