@@ -1,4 +1,4 @@
-# Build de OpenBotV Studio: PyInstaller + portable (zip) + instalador (Inno Setup).
+﻿# Build de OpenBotV Studio: PyInstaller + portable (zip) + instalador (Inno Setup).
 #
 # Uso:
 #   .\installer\build.ps1                 -> menú interactivo
@@ -20,11 +20,16 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$Python = "C:\Users\jvele\miniconda3\envs\.venv\python.exe"
+$Python = Join-Path $env:USERPROFILE "miniconda3\envs\.venv\python.exe"
 $IsccCandidates = @(
-    "C:\Users\jvele\AppData\Local\Programs\Inno Setup 7\ISCC.exe",
-    "C:\Program Files (x86)\Inno Setup 7\ISCC.exe",
-    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+    (Join-Path $env:USERPROFILE "Programs\Inno Setup 7\ISCC.exe"),
+    (Join-Path $env:USERPROFILE "Programs\Inno Setup 6\ISCC.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 7\ISCC.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"),
+    "${env:ProgramFiles}\Inno Setup 7\ISCC.exe",
+    "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
+    "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+    "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 )
 $ExeDir = "dist\OpenBotV-Studio"
 $ExePath = Join-Path $ExeDir "OpenBotV-Studio.exe"
@@ -61,8 +66,28 @@ function Invoke-Portable {
     }
     Warn-DistStale
     Write-Host "==> Portable (zip)" -ForegroundColor Cyan
-    Compress-Archive -Path $ExeDir `
-        -DestinationPath dist\OpenBotV-Studio-portable.zip -Force
+    $maxRetries = 5
+    $retryCount = 0
+    while ($true) {
+        try {
+            Compress-Archive -Path $ExeDir `
+                -DestinationPath dist\OpenBotV-Studio-portable.zip -Force `
+                -ErrorAction Stop
+            break
+        } catch {
+            $isFileInUse = $_.Exception.Message -match `
+                'being used by another process|used by another process|ZipArchiveHelper'
+            if (-not $isFileInUse) {
+                throw
+            }
+            if ($retryCount -ge $maxRetries) {
+                throw "No se pudo crear el ZIP después de $maxRetries reintentos. Error final: $($_.Exception.Message)"
+            }
+            $retryCount++
+            Write-Warning "El archivo está en uso. Reintento $retryCount de $maxRetries en 1 segundo..."
+            Start-Sleep -Seconds 1
+        }
+    }
     Write-Host "OK: dist\OpenBotV-Studio-portable.zip" -ForegroundColor Green
 }
 
@@ -75,8 +100,17 @@ function Invoke-Installer {
     if (-not $Iscc) {
         throw "No se encontró ISCC.exe. Instala Inno Setup o ajusta `$IsccCandidates."
     }
+    $versionData = & $Python -c `
+        "from installer.version import VERSION_NUMBER, VERSION_SUFFIX; print(VERSION_NUMBER); print(VERSION_SUFFIX)"
+    if ($LASTEXITCODE -ne 0 -or $versionData.Count -lt 2) {
+        throw "No se pudo leer la versión desde installer\version.py."
+    }
+    $versionNumber = $versionData[0].Trim()
+    $versionSuffix = $versionData[1].Trim()
     Write-Host "==> Instalador (Inno Setup: $Iscc)" -ForegroundColor Cyan
-    & $Iscc installer\OpenBotV-Studio.iss
+    & $Iscc "/DAPP_VERSION=$versionNumber" `
+        "/DAPP_VERSION_SUFFIX=$versionSuffix" `
+        installer\OpenBotV-Studio.iss
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup falló" }
     Write-Host "OK: dist\installer\OpenBotV-Studio-Setup.exe" -ForegroundColor Green
 }

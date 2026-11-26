@@ -100,12 +100,12 @@ Compress-Archive -Path dist\OpenBotV-Studio `
     -DestinationPath dist\OpenBotV-Studio-portable.zip -Force
 
 # Instalador: requiere [Inno Setup 7](https://jrsoftware.org/isdl.php)
-& "<ruta-a-Inno-Setup>\ISCC.exe" installer\OpenBotV-Studio.iss
+.\installer\build.ps1 -Task Installer
 ```
 
 El spec (`installer\main.spec`) gestiona todo el empaquetado: recursos
 (`src/resources`), SVGs de los temas, dependencias de QtQuick3D, icono del exe
-y metadatos de versión (`installer\version_info.py`).
+y metadatos de versión (`installer\version.py`).
 
 ## ⚙️ Uso de `installer\build.ps1`
 
@@ -167,7 +167,7 @@ incluyendo el contenido de ese archivo.
 │   ├── services/         # Servicios: datos, robot (serie), visión,
 │   │                     #   simulación, styling, UI
 │   └── resources/        # Recursos: QML, mallas, URDF, iconos, imágenes
-├── installer/            # main.spec, version_info.py, .iss, build.ps1
+├── installer/            # main.spec, version.py, .iss, build.ps1
 ├── environment.yml       # Entorno conda reproducible
 └── LICENSE.txt           # GNU GPL v3
 ```

@@ -58,8 +58,10 @@ class ThemeManager:
             config_manager.request_change(
                 "settings.json", ["theme"], "light")
 
-        # Emitir señal según el estado actual
-        is_dark = self.actual_theme == Qt.ColorScheme.Dark
+        # Emitir señal según el tema aplicado (scheme), no del atributo de
+        # clase compartido (actual_theme), que vale None hasta la primera
+        # instancia y haría emitir el tema opuesto al realmente aplicado.
+        is_dark = scheme == Qt.ColorScheme.Dark
         self.theme_signal_manager.emit_theme_change(is_dark)
 
         self.actual_theme = scheme

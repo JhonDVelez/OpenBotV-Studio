@@ -6,6 +6,18 @@ precarga del motor 3D (Quick3D/QML) y del motor de física (PyBullet),
 y finalmente la creación y lanzamiento de la ventana principal.
 """
 
+from src.services.data.enums.types import NotificationType
+from src.services.ui.notification_manager import NotificationManager
+from src.main_window import MainWindow
+from qdarktheme.qtpy.QtWidgets import QSplashScreen
+from PyQt6.QtQuick import QQuickView
+from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtGui import QGuiApplication, QPixmap, QFont, QIcon, QSurfaceFormat
+from PyQt6.QtCore import QUrl, Qt, QDir, QTimer
+import pybullet_data
+import pybullet as p
+import darkdetect
+import cv2
 import os
 import sys
 import ctypes
@@ -38,7 +50,8 @@ def _setup_crash_log():
     candidates.append(os.path.expanduser('~/Documents/OpenBotVStudio/logs'))
     local = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
     candidates.append(os.path.join(local, 'OpenBotVStudio', 'logs'))
-    candidates.append(os.path.join(os.environ.get('TEMP', '.'), 'OpenBotVStudio'))
+    candidates.append(os.path.join(
+        os.environ.get('TEMP', '.'), 'OpenBotVStudio'))
 
     for d in candidates:
         try:
@@ -54,19 +67,6 @@ _log_file = _setup_crash_log()
 if _log_file:
     sys.stdout = _log_file
     sys.stderr = _log_file
-
-import cv2
-import darkdetect
-import pybullet as p
-import pybullet_data
-from PyQt6.QtCore import QUrl, Qt, QDir, QTimer
-from PyQt6.QtGui import QGuiApplication, QPixmap, QFont, QIcon, QSurfaceFormat
-from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtQuick import QQuickView
-from qdarktheme.qtpy.QtWidgets import QSplashScreen
-from src.main_window import MainWindow
-from src.services.ui.notification_manager import NotificationManager
-from src.services.data.enums.types import NotificationType
 
 
 class PreloadedContainer:
@@ -316,9 +316,11 @@ def _excepthook(exc_type, exc_value, exc_tb):
         _log_file.flush()
     try:
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.critical(None, "Error", f"{exc_type.__name__}: {exc_value}")
+        QMessageBox.critical(
+            None, "Error", f"{exc_type.__name__}: {exc_value}")
     except Exception:
         pass
+
 
 sys.excepthook = _excepthook
 

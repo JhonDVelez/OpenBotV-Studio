@@ -92,8 +92,7 @@ class SlidersWidget(QWidget):
             self._controls.append({"slider": slider, "spinbox": spin})
 
         self.main_layout.addWidget(self.container_widget)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
-        self.setMinimumSize(625, 90)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
     def _sync_spin(self, spin, value):
         spin.blockSignals(True)

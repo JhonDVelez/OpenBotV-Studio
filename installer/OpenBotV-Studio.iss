@@ -1,13 +1,13 @@
 ; OpenBotV Studio — Instalador (Inno Setup 6)
-; Compilar con:  ISCC.exe installer\OpenBotV-Studio.iss  (desde la raíz)
+; Compilar con: .\installer\build.ps1 -Task Installer
 ; Requiere antes: pyinstaller installer\main.spec --noconfirm
 
 [Setup]
 ; AppId fijo: identifica la app ante Windows para desinstalar/actualizar.
 AppId={{C9D01377-4407-4B19-8A57-F485EFE9E46F}
 AppName=OpenBotV Studio
-AppVersion=0.6.3
-AppVerName=OpenBotV Studio v0.6.3-beta
+AppVersion={#APP_VERSION}
+AppVerName=OpenBotV Studio v{#APP_VERSION}-{#APP_VERSION_SUFFIX}
 AppPublisher=Jhon D. Velez & Jeisson I. Sanchez
 DefaultDirName={autopf}\OpenBotV-Studio
 DisableProgramGroupPage=yes

@@ -11,7 +11,7 @@ import os
 from PyQt6.QtWidgets import QVBoxLayout, QGridLayout, QSplitter, QGroupBox, QApplication
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QSizePolicy, QToolBar
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtCore import QSize, Qt, QTimer
 import PyQt6Ads as ads
 from src.services.data.enums import Modes, Units, Domains
 from src.services.data import DataController
@@ -86,7 +86,8 @@ class MainInitMixin:
         self.cameraBox.setObjectName("cameraBox")
         self.cameraBox.setFlat(True)
         self.cameraBox.setSizePolicy(box_size_policy)
-        self.cameraDock.setWidget(self.cameraBox, ads.CDockWidget.eInsertMode.ForceNoScrollArea)
+        self.cameraDock.setWidget(
+            self.cameraBox, ads.CDockWidget.eInsertMode.ForceNoScrollArea)
         self.cameraDock.setMinimumSizeHintMode(
             ads.CDockWidget.eMinimumSizeHintMode.MinimumSizeHintFromDockWidgetMinimumSize)
         self.dock_manager.addDockWidget(
@@ -121,9 +122,10 @@ class MainInitMixin:
         self.verticalLayout_2.setSpacing(0)
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
 
-        self.controlsDock.setWidget(self.controlsBox, ads.CDockWidget.eInsertMode.ForceNoScrollArea)
+        self.controlsDock.setWidget(
+            self.controlsBox, ads.CDockWidget.eInsertMode.ForceNoScrollArea)
         self.controlsDock.setMinimumSizeHintMode(
-            ads.CDockWidget.eMinimumSizeHintMode.MinimumSizeHintFromDockWidgetMinimumSize)
+            ads.CDockWidget.eMinimumSizeHintMode.MinimumSizeHintFromContent)
         self.dock_manager.addDockWidget(
             Area.BottomDockWidgetArea, self.controlsDock, self.graphsDock.dockAreaWidget())
         self._configure_dock_title_bar(self.controlsDock)
@@ -154,6 +156,12 @@ class MainInitMixin:
     def _on_dock_floating_changed(self, dock):
         """Re-apply title bar config when a dock is docked (floating=False) or undocked (floating=True)."""
         self._configure_dock_title_bar(dock)
+        if dock is getattr(self, "controlsDock", None):
+            area = dock.dockAreaWidget()
+            if area is not None:
+                area.setMaximumHeight(16777215)
+            if not dock.isFloating():
+                QTimer.singleShot(0, self._fit_controls_dock_height)
 
     def init_camera(self):
         """
@@ -171,7 +179,6 @@ class MainInitMixin:
         self.pick_and_place_controller = PickAndPlaceController(
             self.camera_controller.get_widget()
         )
-
 
         self.camera_controller.status_changed.connect(
             self.camera_connected_label.setText)
@@ -200,12 +207,15 @@ class MainInitMixin:
             self.sliders_controller.get_widget())
         self.modes_widget.layout().addWidget(
             self.kinematics_controller.get_widget())
-        self.modes_widget.setMaximumSize(QSize(1050, 300))
 
         self.kinematics_controller.get_widget().hide()
 
-        self.controlsBox.layout().addStretch(1)
         self.controlsBox.layout().addWidget(self.modes_widget)
+
+        # Ajustar el alto del dock al contenido una vez mostrada la ventana.
+        # Con 0 ms el FlowLayout aún no tiene el ancho final y mide de menos.
+        # QTimer.singleShot(0, self._fit_controls_dock_height)
+        # QTimer.singleShot(150, self._fit_controls_dock_height)
 
     def init_tool_bar(self):
         """

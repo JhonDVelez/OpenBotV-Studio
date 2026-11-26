@@ -6,7 +6,7 @@ detener y reiniciar, así como la alternancia de visibilidad de paneles
 y la inicialización de ventanas de calibración.
 """
 
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, QTimer
 from src.services.robot.serial_manager import SerialPortManager
 from src.services.data.enums.types import Modes
 from src.services.data.signals import (
@@ -205,6 +205,8 @@ class MainActionsMixin:
         self.controlsDock.toggleView(checked)
         ConfigSignalManager.get_instance().request_change(
             "settings.json", ["content", "controls"], checked)
+        if checked:
+            QTimer.singleShot(0, self._fit_controls_dock_height)
 
     def initiate_camera_calibration(self):
         """
@@ -291,6 +293,76 @@ class MainActionsMixin:
         """
         SearchSignalManager.get_instance().set_circle(checked)
 
+    def _fit_controls_dock_height(self):
+        """
+        Ajusta el alto del dock de controles al widget visible.
+
+        Fija el máximo del área del dock a la altura natural del contenido
+        (solo vertical) y reparte el espacio restante en el splitter, para que
+        al cambiar entre sliders, cinemática o PID no quede espacio vacío.
+        """
+        dock = getattr(self, "controlsDock", None)
+        content = getattr(self, "modes_widget", None)
+        if dock is None or content is None or dock.isFloating():
+            return
+
+        area = dock.dockAreaWidget()
+        layout = content.layout()
+        if area is None or layout is None:
+            return
+
+        # Altura natural del widget visible (respeta el heightForWidth del FlowLayout)
+        height = 0
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            widget = item.widget() if item else None
+            if widget is None or widget.isHidden():
+                continue
+            width = widget.width() or content.width() or widget.sizeHint().width()
+            if widget.hasHeightForWidth():
+                h = widget.heightForWidth(width)
+            else:
+                h = widget.sizeHint().height()
+            height = max(height, h)
+        if height <= 0:
+            height = content.sizeHint().height()
+
+        title_h = area.titleBarGeometry().height() if area.titleBar() else 0
+        target = height + title_h
+
+        # Corregir si el contenido real necesita más alto (evita recortes)
+        for _ in range(3):
+            area.setMaximumHeight(target)
+            self._set_controls_splitter_size(area, target)
+            layout.activate()
+            needed = content.height() + title_h
+            if needed <= target:
+                break
+            target = needed
+
+    def _set_controls_splitter_size(self, area, target):
+        """
+        Reparte el alto del splitter: `target` para el dock de controles y el
+        resto proporcionalmente a las áreas vecinas.
+        """
+        splitter = area.parentSplitter()
+        if splitter is None:
+            return
+        idx = splitter.indexOf(area)
+        if idx < 0:
+            return
+        sizes = splitter.sizes()
+        total = sum(sizes)
+        if total <= target:
+            return
+        others = [i for i in range(len(sizes)) if i != idx]
+        other_total = sum(sizes[i] for i in others)
+        sizes[idx] = target
+        if other_total > 0:
+            for i in others:
+                sizes[i] = int(sizes[i] * (total - target) / other_total)
+        splitter.setSizes(sizes)
+
     def toggle_sliders_controls(self, checked: bool):
         """
         Alterna la visibilidad del panel de control manual (sliders).
@@ -332,6 +404,8 @@ class MainActionsMixin:
         ConfigSignalManager.get_instance().request_change(
             'settings.json', ["mode", 'sliders'], checked)
 
+        QTimer.singleShot(0, self._fit_controls_dock_height)
+
     def toggle_kinematics_controls(self, checked: bool):
         """
         Alterna la visibilidad del panel de control cinematico.
@@ -361,6 +435,8 @@ class MainActionsMixin:
         ConfigSignalManager.get_instance().request_change(
             'settings.json', ["mode", 'kinematics'], checked)
 
+        QTimer.singleShot(0, self._fit_controls_dock_height)
+
     def toggle_pick_place_controls(self, checked: bool):
         """
         Alterna la visibilidad del panel de control pick and place.
@@ -368,6 +444,12 @@ class MainActionsMixin:
         Args:
             checked (bool): True para mostrar el panel de controles
         """
+        # El panel de controles sigue el estado del modo: se oculta al activar
+        # P&P y se restaura al salir, igual que su botón de la toolbar.
+        self.toggle_visibility_controls_event(not checked)
+        self.controls_action.setChecked(not checked)
+        self.controls_action.setEnabled(not checked)
+
         if checked and not self.connected_to_robot:
             NotificationManager.get_instance().notify(
                 "Para usar el modo Pick and Place debe conectar el robot previamente desde el menú Robot > Puerto.",
@@ -387,8 +469,6 @@ class MainActionsMixin:
         if not checked:
             SerialPortManager.get_instance().release_access("PickAndPlaceWorker")
 
-        # Ya no forzamos la ocultación del panel de controles aquí.
-        # El controlador P&P se encarga de ajustar el contenido (PID only).
         ConfigSignalManager.get_instance().request_change(
             'settings.json', ["mode", 'pick_place'], checked)
 

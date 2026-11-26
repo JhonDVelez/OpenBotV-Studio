@@ -13,7 +13,7 @@ Conexiones:
 
 from qframelesswindow import FramelessMainWindow
 from PyQt6.QtWidgets import QMessageBox, QVBoxLayout, QWidget, QLabel, QApplication, QMainWindow
-from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtCore import QCoreApplication, Qt, QTimer
 from src.main_window.mixins import (
     MainInitMixin, MainActionsMixin, MainMenuMixin, MainTitleBarMixin)
 from src.services.devices import CameraDevices
@@ -96,14 +96,15 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
         self.create_status_bar()
         self.init_camera()
         self.init_controls()
-        
+
         self.init_tool_bar()
         self.init_simulation()
         self.init_graphics()
-        
+
         # Link kinematics to P&P
-        self.pick_and_place_controller.set_kinematics_controller(self.kinematics_controller, self.graph_controller)
-        
+        self.pick_and_place_controller.set_kinematics_controller(
+            self.kinematics_controller, self.graph_controller)
+
         self.setup_connections()
 
         # Añadir toolbar de acciones
@@ -186,6 +187,8 @@ class MainWindow(FramelessMainWindow, MainInitMixin, MainActionsMixin, MainMenuM
 
         noti_manager = NotificationManager.get_instance()
         noti_manager.set_main_window(self)
+
+        QTimer.singleShot(50, self._fit_controls_dock_height)
 
     def _on_external_theme_changed(self, is_dark: bool):
         """

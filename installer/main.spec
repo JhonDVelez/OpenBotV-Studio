@@ -3,11 +3,55 @@
 import glob
 import os
 from PyInstaller.utils.hooks import collect_data_files
+from installer.version import VERSION, VERSION_TUPLE
 
 # Al ejecutar `pyinstaller installer\main.spec`, las rutas relativas del spec
 # se resuelven contra la carpeta del spec (SPECPATH); calculamos la raíz del
 # proyecto para referenciar todo de forma inequívoca.
 ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
+
+# Genera el archivo que PyInstaller usa para incrustar la versión de Windows.
+# La versión se mantiene únicamente en installer/version.py.
+version_info_path = os.path.join(ROOT, 'build', 'version_info.generated.py')
+os.makedirs(os.path.dirname(version_info_path), exist_ok=True)
+version_info = f"""VSVersionInfo(
+    ffi=FixedFileInfo(
+        filevers={VERSION_TUPLE},
+        prodvers={VERSION_TUPLE},
+        mask=0x3F,
+        flags=0x0,
+        OS=0x40004,
+        fileType=0x1,
+        subtype=0x0,
+        date=(0, 0),
+    ),
+    kids=[
+        StringFileInfo(
+            [
+                StringTable(
+                    '040904B0',
+                    [
+                        StringStruct(
+                            'CompanyName', 'Jhon D. Velez & Jeisson I. Sanchez'),
+                        StringStruct('FileDescription', 'OpenBotV Studio'),
+                        StringStruct('FileVersion', 'v{VERSION}'),
+                        StringStruct('InternalName', 'OpenBotV-Studio'),
+                        StringStruct(
+                            'LegalCopyright',
+                            'Jhon D. Velez & Jeisson I. Sanchez'),
+                        StringStruct('OriginalFilename', 'OpenBotV-Studio.exe'),
+                        StringStruct('ProductName', 'OpenBotV Studio'),
+                        StringStruct('ProductVersion', 'v{VERSION}'),
+                    ],
+                )
+            ]
+        ),
+        VarFileInfo([VarStruct('Translation', [1033, 1200])]),
+    ],
+)
+"""
+with open(version_info_path, 'w', encoding='utf-8') as file:
+    file.write(version_info)
 
 # ------------------------------------------------------------------
 # DLLs de Qt6: en este entorno (pip PyQt6 + Qt de conda-forge) los
@@ -87,7 +131,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version=os.path.join(SPECPATH, 'version_info.py'),
+    version=version_info_path,
     icon=os.path.join(ROOT, 'src', 'resources', 'img', 'laser_b.ico'),
 )
 coll = COLLECT(
